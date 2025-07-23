@@ -5,7 +5,9 @@ VisualStudioVersion = 17.10.35004.147
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MVVRus.AspNetCore.RateLimiting", "MVVRus.AspNetCore.RateLimiting\MVVRus.AspNetCore.RateLimiting.csproj", "{30FBE658-ADED-4E3D-A648-69CADCF3A05B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MVVRus.Extensions.RateLimiting", "MVVRus.Extensions.RateLimiting\MVVRus.Extensions.RateLimiting.csproj", "{EB55C716-D49B-428E-9A69-C1DC99E4DAAD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MVVRus.Extensions.RateLimiting", "MVVRus.Extensions.RateLimiting\MVVRus.Extensions.RateLimiting.csproj", "{EB55C716-D49B-428E-9A69-C1DC99E4DAAD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MVVrus.AspNetCore.ActiveSession.RateLimiting", "MVVrus.AspNetCore.ActiveSession.RateLimiting\MVVrus.AspNetCore.ActiveSession.RateLimiting.csproj", "{F2B0E777-A581-4E8D-81B5-DEEB1C89D9AB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{EB55C716-D49B-428E-9A69-C1DC99E4DAAD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EB55C716-D49B-428E-9A69-C1DC99E4DAAD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EB55C716-D49B-428E-9A69-C1DC99E4DAAD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F2B0E777-A581-4E8D-81B5-DEEB1C89D9AB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F2B0E777-A581-4E8D-81B5-DEEB1C89D9AB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F2B0E777-A581-4E8D-81B5-DEEB1C89D9AB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F2B0E777-A581-4E8D-81B5-DEEB1C89D9AB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
