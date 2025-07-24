@@ -6,4 +6,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Reference Include="MVVrus.AspNetCore.ActiveSession">
+      <HintPath>..\..\ActiveSession\MVVrus.AspNetCore.ActiveSession\bin\Debug\net6.0\MVVrus.AspNetCore.ActiveSession.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
 </Project>
