@@ -1,15 +1,24 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Threading.RateLimiting;
+using MVVRus.Extensions.RateLimiting;
 
 namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
 {
     public class ActiveSessionsPerGroupLimiter : PartitionedRateLimiter<HttpContext>
     {
         PartitionedRateLimiter<HttpContext> _newActiveSessionLimiter;
+        ConcurrencyLimiterOptions _options;
 
-        public ActiveSessionsPerGroupLimiter()
+        //Func<ILocalSession, RateLimitPartition<ILocalSession>> _func;
+        //TODO = ManagedLifetimePartition.GetManagedLifetimeLimiter<ILocalSession>(partitionFactory: inner);
+
+        public ActiveSessionsPerGroupLimiter(ConcurrencyLimiterOptions options)
         {
-            _newActiveSessionLimiter = PartitionedRateLimiter.Create<HttpContext, IActiveSession>(Partitioner, Comparer);
+            _options = options;
+            Func<HttpContext, RateLimitPartition<ILocalSession>> partitioner = Partitioner;
+            _newActiveSessionLimiter = PartitionedRateLimiter.Create(
+                partitioner, 
+                Comparer);
         }
 
         public override RateLimiterStatistics? GetStatistics(HttpContext resource)
@@ -27,24 +36,63 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
             throw new NotImplementedException("TODO");
         }
 
-        static RateLimitPartition<IActiveSession> Partitioner(HttpContext context)
+        protected override void Dispose(Boolean disposing)
+        {
+            if(disposing) _newActiveSessionLimiter.Dispose();
+            base.Dispose(disposing);
+        }
+
+        protected override async ValueTask DisposeAsyncCore()
+        {
+            await _newActiveSessionLimiter.DisposeAsync();
+            await base.DisposeAsyncCore();
+        }
+
+
+        RateLimitPartition<ILocalSession> Partitioner(HttpContext context)
+        {   
+            ILocalSession local_session = context.GetLocalSession();
+            return ManagedLifetimePartition.GetManagedLifetimeLimiter(
+                local_session,
+                key=>RateLimitPartition.GetConcurrencyLimiter(key, _=>_options),
+                Registrar);
+        }
+
+        void Registrar(ManagedLifetimeLimiter limiter, ILocalSession sessionGroup, Object? _)
         {
             throw new NotImplementedException("TODO");
         }
 
-        class ActiveSessionComparer : IEqualityComparer<IActiveSession>
+        class SessionGroupComparer : IEqualityComparer<ILocalSession>
         {
-            public Boolean Equals(IActiveSession? x, IActiveSession? y)
+            public Boolean Equals(ILocalSession? x, ILocalSession? y)
             {
-                throw new NotImplementedException("TODO");
+                if(x is null) return (y is null);
+                else return x.Id.Equals(y?.Id);
             }
 
-            public Int32 GetHashCode([DisallowNull] IActiveSession obj)
+            public Int32 GetHashCode([DisallowNull] ILocalSession obj)
             {
-                throw new NotImplementedException("TODO"    );
+                return obj.GetType().GetHashCode() ^ obj.Id.GetHashCode();
             }
         }
 
-        static ActiveSessionComparer Comparer = new ActiveSessionComparer();
+        static SessionGroupComparer Comparer = new SessionGroupComparer();
+
+        class SurrogateLease : RateLimitLease
+        {
+
+            public override Boolean IsAcquired => true;
+
+            public override IEnumerable<String> MetadataNames => Array.Empty<String>();
+
+            public override Boolean TryGetMetadata(String metadataName, out Object? metadata)
+            {
+                metadata = null;
+                return false;
+            }
+        }
+
+        static SurrogateLease SuccessLease = new SurrogateLease();
     }
 }

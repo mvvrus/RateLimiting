@@ -4,24 +4,30 @@ namespace MVVRus.Extensions.RateLimiting
 {
     public static  class ManagedLifetimePartition
     {
-        public static Func<TKey, RateLimitPartition<TKey>> GetManagedLifetimeLimiter<TKey>(
-            Func<TKey, RateLimiter> inner,
-            Action<ManagedLifetimeLimiter, TKey, Object?>? registrar = null,
+        public static RateLimitPartition<TKey> GetManagedLifetimeLimiter<TKey>(
+            TKey key,
+            Func<TKey, RateLimiter> limiterFactory,
+            Action<ManagedLifetimeLimiter, TKey, Object?> registrar,
             Object? state = null)
         {
-            return (TKey key) => {
-                ManagedLifetimeLimiter limiter = new ManagedLifetimeLimiter(inner(key));
-                registrar?.Invoke(limiter, key, state);
-                return new RateLimitPartition<TKey>(key, _ => limiter);
-            };
+            return new RateLimitPartition<TKey>(key, Key => {
+                ManagedLifetimeLimiter limiter = new ManagedLifetimeLimiter(limiterFactory(Key));
+                registrar.Invoke(limiter, Key, state);
+                return limiter;
+            });
         }
 
-        public static Func<TKey, RateLimitPartition<TKey>> GetManagedLifetimeLimiter<TKey>(
-            Func<TKey, RateLimitPartition<TKey>> inner,
-            Action<ManagedLifetimeLimiter, TKey, Object?>? registrar = null,
+        public static RateLimitPartition<TKey> GetManagedLifetimeLimiter<TKey>(
+            TKey key,
+            Func<TKey, RateLimitPartition<TKey>> partitionFactory,
+            Action<ManagedLifetimeLimiter, TKey, Object?> registrar,
             Object? state = null)
         {
-            return GetManagedLifetimeLimiter(key=>inner(key).Factory(key), registrar, state);
+            return new RateLimitPartition<TKey>(key, Key => {
+                ManagedLifetimeLimiter limiter = new ManagedLifetimeLimiter(partitionFactory(Key).Factory(Key));
+                registrar.Invoke(limiter, Key, state);
+                return limiter;
+            });
         }
 
     }
