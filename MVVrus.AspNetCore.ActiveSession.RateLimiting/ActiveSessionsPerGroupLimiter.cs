@@ -9,8 +9,9 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
         PartitionedRateLimiter<HttpContext> _newActiveSessionLimiter;
         ConcurrencyLimiterOptions _options;
 
-        //Func<ILocalSession, RateLimitPartition<ILocalSession>> _func;
-        //TODO = ManagedLifetimePartition.GetManagedLifetimeLimiter<ILocalSession>(partitionFactory: inner);
+        static Action<ManagedLifetimeLimiter, ILocalSession, Object?>  RegistrarDelegate = Registrar;
+        static RateLimitPartition<ILocalSession> NoLimiter=RateLimitPartition.GetNoLimiter<ILocalSession>(null!);
+
 
         public ActiveSessionsPerGroupLimiter(ConcurrencyLimiterOptions options)
         {
@@ -21,19 +22,23 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
                 Comparer);
         }
 
-        public override RateLimiterStatistics? GetStatistics(HttpContext resource)
+        public override RateLimiterStatistics? GetStatistics(HttpContext context)
         {
-            return _newActiveSessionLimiter.GetStatistics(resource);
+            return context.GetLocalSession().IsAvailable ? _newActiveSessionLimiter.GetStatistics(context) : null;
         }
 
-        protected override ValueTask<RateLimitLease> AcquireAsyncCore(HttpContext resource, Int32 permitCount, CancellationToken cancellationToken)
+        protected override async ValueTask<RateLimitLease> AcquireAsyncCore(HttpContext context, Int32 permitCount, CancellationToken token)
         {
-            throw new NotImplementedException("TODO");
+            if(HasAssociatedLease(context)) return SuccessLease;
+            RateLimitLease lease = await _newActiveSessionLimiter.AcquireAsync(context, permitCount, token);
+            return AssociateAndSubstituteLeaseWithSuccess(lease, context);
         }
 
-        protected override RateLimitLease AttemptAcquireCore(HttpContext resource, Int32 permitCount)
+        protected override RateLimitLease AttemptAcquireCore(HttpContext context, Int32 permitCount)
         {
-            throw new NotImplementedException("TODO");
+            if(HasAssociatedLease(context)) return SuccessLease;
+            RateLimitLease lease = _newActiveSessionLimiter.AttemptAcquire(context, permitCount);
+            return AssociateAndSubstituteLeaseWithSuccess(lease, context);
         }
 
         protected override void Dispose(Boolean disposing)
@@ -48,19 +53,58 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
             await base.DisposeAsyncCore();
         }
 
+        Boolean HasAssociatedLease(HttpContext context)
+        {
+            if(!context.GetLocalSession().IsAvailable) return true;
+            IActiveSession active_session = context.GetActiveSession();
+            return !active_session.IsAvailable || active_session.Properties.ContainsKey(ActiveSessionLeaseInfo.KEY);
+        }
+
+        RateLimitLease AssociateAndSubstituteLeaseWithSuccess(RateLimitLease lease, HttpContext context)
+        {
+            IActiveSession active_session = context.GetActiveSession();
+            if(!lease.IsAcquired) return lease;
+            try {
+                active_session.Properties.Add(ActiveSessionLeaseInfo.KEY, new ActiveSessionLeaseInfo(lease));
+                active_session.TakeOwnership(lease);
+            }
+            catch(ArgumentException) {
+                lease.Dispose();
+                throw new InvalidOperationException($"An active session lease is already associated with the active session with Id={active_session.Id}");
+            }
+            catch {
+                lease.Dispose();
+                throw;
+            }
+            return SuccessLease;
+        }
 
         RateLimitPartition<ILocalSession> Partitioner(HttpContext context)
         {   
             ILocalSession local_session = context.GetLocalSession();
+            // The section limiter must not become expired until the session group object is not disposed.
+            // The session group of the context is always available due to HasAssociatedLease call in both lease acquisition methods,
+            // so use ManagedLifetimeLimiter associated with the actual session group.
             return ManagedLifetimePartition.GetManagedLifetimeLimiter(
-                local_session,
-                key=>RateLimitPartition.GetConcurrencyLimiter(key, _=>_options),
-                Registrar);
+                context.GetLocalSession(),
+                key=>RateLimitPartition.GetConcurrencyLimiter(key, key=>_options),
+                RegistrarDelegate);
         }
 
-        void Registrar(ManagedLifetimeLimiter limiter, ILocalSession sessionGroup, Object? _)
+        static void Registrar(ManagedLifetimeLimiter limiter, ILocalSession sessionGroup, Object? _)
         {
-            throw new NotImplementedException("TODO");
+            try {
+                sessionGroup.Properties.Add(SessionGroupASLimiterInfo.KEY, new SessionGroupASLimiterInfo(limiter));
+                sessionGroup.TakeOwnership(limiter);
+            }
+            catch(ArgumentException) {
+                limiter.Dispose();
+                throw new InvalidOperationException($"An active session limiter is already associated with the group with Id={sessionGroup.Id}");
+            }
+            catch {
+                limiter.Dispose();
+                throw;
+            }
         }
 
         class SessionGroupComparer : IEqualityComparer<ILocalSession>
