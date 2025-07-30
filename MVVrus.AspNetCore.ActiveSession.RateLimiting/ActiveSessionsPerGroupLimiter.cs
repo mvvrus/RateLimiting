@@ -9,7 +9,7 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
         PartitionedRateLimiter<HttpContext> _newActiveSessionLimiter;
         ConcurrencyLimiterOptions _options;
 
-        static Action<ManagedLifetimeLimiter, ILocalSession, Object?>  RegistrarDelegate = Registrar;
+        static Action<ManagedLifetimeLimiter, ILocalSession>  RegistrarDelegate = Registrar;
         static RateLimitPartition<ILocalSession> NoLimiter=RateLimitPartition.GetNoLimiter<ILocalSession>(null!);
 
 
@@ -91,7 +91,7 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
                 RegistrarDelegate);
         }
 
-        static void Registrar(ManagedLifetimeLimiter limiter, ILocalSession sessionGroup, Object? _)
+        static void Registrar(ManagedLifetimeLimiter limiter, ILocalSession sessionGroup)
         {
             try {
                 sessionGroup.Properties.Add(SessionGroupASLimiterInfo.KEY, new SessionGroupASLimiterInfo(limiter));
