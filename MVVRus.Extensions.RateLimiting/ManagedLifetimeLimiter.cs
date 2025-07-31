@@ -12,21 +12,21 @@ namespace MVVRus.Extensions.RateLimiting
             this.Inner= Inner;
         }
 
-        public override TimeSpan? IdleDuration => Inner is null?TimeSpan.MaxValue:null;
+        public override TimeSpan? IdleDuration => Volatile.Read(ref Inner) is null?TimeSpan.MaxValue:null;
 
         public override RateLimiterStatistics? GetStatistics()
         {
-            return Inner?.GetStatistics()??throw new ObjectDisposedException(nameof(Inner));
+            return Volatile.Read(ref Inner)?.GetStatistics()??throw new ObjectDisposedException(nameof(Inner));
         }
 
         protected override ValueTask<RateLimitLease> AcquireAsyncCore(Int32 permitCount, CancellationToken cancellationToken)
         {
-            return Inner?.AcquireAsync(permitCount, cancellationToken)??throw new ObjectDisposedException(nameof(Inner));
+            return Volatile.Read(ref Inner)?.AcquireAsync(permitCount, cancellationToken)??throw new ObjectDisposedException(nameof(Inner));
         }
 
         protected override RateLimitLease AttemptAcquireCore(Int32 permitCount)
         {
-            return Inner?.AttemptAcquire(permitCount) ?? throw new ObjectDisposedException(nameof(Inner));
+            return Volatile.Read(ref Inner)?.AttemptAcquire(permitCount) ?? throw new ObjectDisposedException(nameof(Inner));
         }
 
         protected override void Dispose(bool disposing)
