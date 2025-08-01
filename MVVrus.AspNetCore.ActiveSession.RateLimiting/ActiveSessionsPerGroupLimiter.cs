@@ -4,63 +4,53 @@ using MVVRus.Extensions.RateLimiting;
 
 namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
 {
-    public class ActiveSessionsPerGroupLimiter : PartitionedRateLimiter<HttpContext>
+    public class ActiveSessionsPerGroupLimiter : LimiterLeaseTranslator<HttpContext>
     {
-        PartitionedRateLimiter<HttpContext> _newActiveSessionLimiter;
-        ConcurrencyLimiterOptions _options;
 
         static Action<ManagedLifetimeLimiter, ILocalSession>  RegistrarDelegate = Registrar;
         static RateLimitPartition<ILocalSession> NoLimiter=RateLimitPartition.GetNoLimiter<ILocalSession>(null!);
 
 
-        public ActiveSessionsPerGroupLimiter(ConcurrencyLimiterOptions options)
-        {
-            _options = options;
-            Func<HttpContext, RateLimitPartition<ILocalSession>> partitioner = Partitioner;
-            _newActiveSessionLimiter = PartitionedRateLimiter.Create(
-                partitioner, 
-                Comparer);
-        }
+        public ActiveSessionsPerGroupLimiter(ConcurrencyLimiterOptions options): base (
+            PartitionedRateLimiter.Create(
+                (HttpContext context) => Partitioner(context, options),
+                Comparer)
+            ) {}
 
         public override RateLimiterStatistics? GetStatistics(HttpContext context)
         {
-            return context.GetLocalSession().IsAvailable ? _newActiveSessionLimiter.GetStatistics(context) : null;
+            return context.GetLocalSession().IsAvailable ? base.GetStatistics(context) : null;
         }
 
-        protected override async ValueTask<RateLimitLease> AcquireAsyncCore(HttpContext context, Int32 permitCount, CancellationToken token)
+        static RateLimitPartition<ILocalSession> Partitioner(HttpContext context, ConcurrencyLimiterOptions options)
+        {   
+            ILocalSession local_session = context.GetLocalSession();
+            // The section limiter must not become expired until the session group object is not disposed.
+            // The session group of the context is always available due to HasAssociatedLease call in both lease acquisition methods,
+            // so use ManagedLifetimeLimiter associated with the actual session group.
+            return ManagedLifetimePartition.GetManagedLifetimeLimiter(
+                context.GetLocalSession(),
+                key=>RateLimitPartition.GetConcurrencyLimiter(key, key=>options),
+                RegistrarDelegate);
+        }
+
+        static void Registrar(ManagedLifetimeLimiter limiter, ILocalSession sessionGroup)
         {
-            if(HasAssociatedLease(context)) return SuccessLease;
-            RateLimitLease lease = await _newActiveSessionLimiter.AcquireAsync(context, permitCount, token);
-            return AssociateAndSubstituteLeaseWithSuccess(lease, context);
+            try {
+                sessionGroup.Properties.Add(SessionGroupASLimiterInfo.KEY, new SessionGroupASLimiterInfo(limiter));
+                sessionGroup.TakeOwnership(limiter);
+            }
+            catch(ArgumentException) {
+                limiter.Dispose();
+                throw new InvalidOperationException($"An active session limiter is already associated with the group with Id={sessionGroup.Id}");
+            }
+            catch {
+                limiter.Dispose();
+                throw;
+            }
         }
 
-        protected override RateLimitLease AttemptAcquireCore(HttpContext context, Int32 permitCount)
-        {
-            if(HasAssociatedLease(context)) return SuccessLease;
-            RateLimitLease lease = _newActiveSessionLimiter.AttemptAcquire(context, permitCount);
-            return AssociateAndSubstituteLeaseWithSuccess(lease, context);
-        }
-
-        protected override void Dispose(Boolean disposing)
-        {
-            if(disposing) _newActiveSessionLimiter.Dispose();
-            base.Dispose(disposing);
-        }
-
-        protected override async ValueTask DisposeAsyncCore()
-        {
-            await _newActiveSessionLimiter.DisposeAsync();
-            await base.DisposeAsyncCore();
-        }
-
-        Boolean HasAssociatedLease(HttpContext context)
-        {
-            if(!context.GetLocalSession().IsAvailable) return true;
-            IActiveSession active_session = context.GetActiveSession();
-            return !active_session.IsAvailable || active_session.Properties.ContainsKey(ActiveSessionLeaseInfo.KEY);
-        }
-
-        RateLimitLease AssociateAndSubstituteLeaseWithSuccess(RateLimitLease lease, HttpContext context)
+        protected override RateLimitLease TranslateLease(RateLimitLease lease, HttpContext context)
         {
             IActiveSession active_session = context.GetActiveSession();
             if(!lease.IsAcquired) return lease;
@@ -79,32 +69,11 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
             return SuccessLease;
         }
 
-        RateLimitPartition<ILocalSession> Partitioner(HttpContext context)
-        {   
-            ILocalSession local_session = context.GetLocalSession();
-            // The section limiter must not become expired until the session group object is not disposed.
-            // The session group of the context is always available due to HasAssociatedLease call in both lease acquisition methods,
-            // so use ManagedLifetimeLimiter associated with the actual session group.
-            return ManagedLifetimePartition.GetManagedLifetimeLimiter(
-                context.GetLocalSession(),
-                key=>RateLimitPartition.GetConcurrencyLimiter(key, key=>_options),
-                RegistrarDelegate);
-        }
-
-        static void Registrar(ManagedLifetimeLimiter limiter, ILocalSession sessionGroup)
-        {
-            try {
-                sessionGroup.Properties.Add(SessionGroupASLimiterInfo.KEY, new SessionGroupASLimiterInfo(limiter));
-                sessionGroup.TakeOwnership(limiter);
-            }
-            catch(ArgumentException) {
-                limiter.Dispose();
-                throw new InvalidOperationException($"An active session limiter is already associated with the group with Id={sessionGroup.Id}");
-            }
-            catch {
-                limiter.Dispose();
-                throw;
-            }
+        protected override RateLimitLease? ExtractExistingLease(HttpContext context) {
+            if(!context.GetLocalSession().IsAvailable) return SuccessLease;
+            IActiveSession active_session = context.GetActiveSession();
+            return !active_session.IsAvailable || active_session.Properties.ContainsKey(ActiveSessionLeaseInfo.KEY) 
+                ? SuccessLease : null;
         }
 
         class SessionGroupComparer : IEqualityComparer<ILocalSession>
