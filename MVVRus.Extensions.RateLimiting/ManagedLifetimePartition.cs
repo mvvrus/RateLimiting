@@ -6,11 +6,11 @@ namespace MVVRus.Extensions.RateLimiting
     {
         public static RateLimitPartition<TKey> GetManagedLifetimeLimiter<TKey>(
             TKey key,
-            Func<TKey, RateLimiter> limiterFactory,
+            Func<TKey, RateLimiter> factory,
             Action<ManagedLifetimeLimiter, TKey> registrar)
         {
             return new RateLimitPartition<TKey>(key, Key => {
-                ManagedLifetimeLimiter limiter = new ManagedLifetimeLimiter(limiterFactory(Key));
+                ManagedLifetimeLimiter limiter = new ManagedLifetimeLimiter(factory(Key));
                 registrar.Invoke(limiter, Key);
                 return limiter;
             });
@@ -18,38 +18,38 @@ namespace MVVRus.Extensions.RateLimiting
 
         public static RateLimitPartition<TKey> GetManagedLifetimeLimiter<TKey>(
             TKey key,
-            Func<TKey, RateLimitPartition<TKey>> partitionFactory,
+            Func<TKey, RateLimitPartition<TKey>> factory,
             Action<ManagedLifetimeLimiter, TKey> registrar)
         {
             return new RateLimitPartition<TKey>(key, Key => {
-                ManagedLifetimeLimiter limiter = new ManagedLifetimeLimiter(partitionFactory(Key).Factory(Key));
+                ManagedLifetimeLimiter limiter = new ManagedLifetimeLimiter(factory(Key).Factory(Key));
                 registrar.Invoke(limiter, Key);
                 return limiter;
             });
         }
 
-        public static RateLimitPartition<TKey> GetManagedLifetimeLimiter<TKey, TState>(
+        public static RateLimitPartition<TKey> GetManagedLifetimeLimiter<TKey, TContext>(
             TKey key,
-            Func<TKey, RateLimiter> limiterFactory,
-            Action<ManagedLifetimeLimiter, TKey, TState> registrar,
-            TState state)
+            Func<TKey, RateLimiter> factory,
+            Action<ManagedLifetimeLimiter, TKey, TContext> registrar,
+            TContext context)
         {
             return new RateLimitPartition<TKey>(key, Key => {
-                ManagedLifetimeLimiter limiter = new ManagedLifetimeLimiter(limiterFactory(Key));
-                registrar.Invoke(limiter, Key, state);
+                ManagedLifetimeLimiter limiter = new ManagedLifetimeLimiter(factory(Key));
+                registrar.Invoke(limiter, Key, context);
                 return limiter;
             });
         }
 
-        public static RateLimitPartition<TKey> GetManagedLifetimeLimiter<TKey, TState>(
+        public static RateLimitPartition<TKey> GetManagedLifetimeLimiter<TKey, TContext>(
             TKey key,
-            Func<TKey, RateLimitPartition<TKey>> partitionFactory,
-            Action<ManagedLifetimeLimiter, TKey, TState> registrar,
-            TState state)
+            Func<TKey, RateLimitPartition<TKey>> factory,
+            Action<ManagedLifetimeLimiter, TKey, TContext> registrar,
+            TContext context)
         {
             return new RateLimitPartition<TKey>(key, Key => {
-                ManagedLifetimeLimiter limiter = new ManagedLifetimeLimiter(partitionFactory(Key).Factory(Key));
-                registrar.Invoke(limiter, Key, state);
+                ManagedLifetimeLimiter limiter = new ManagedLifetimeLimiter(factory(Key).Factory(Key));
+                registrar.Invoke(limiter, Key, context);
                 return limiter;
             });
         }
