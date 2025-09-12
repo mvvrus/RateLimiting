@@ -7,7 +7,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MVVRus.AspNetCore.RateLimit
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MVVRus.Extensions.RateLimiting", "MVVRus.Extensions.RateLimiting\MVVRus.Extensions.RateLimiting.csproj", "{EB55C716-D49B-428E-9A69-C1DC99E4DAAD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MVVrus.AspNetCore.ActiveSession.RateLimiting", "MVVrus.AspNetCore.ActiveSession.RateLimiting\MVVrus.AspNetCore.ActiveSession.RateLimiting.csproj", "{F2B0E777-A581-4E8D-81B5-DEEB1C89D9AB}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MVVrus.AspNetCore.ActiveSession.RateLimiting", "MVVrus.AspNetCore.ActiveSession.RateLimiting\MVVrus.AspNetCore.ActiveSession.RateLimiting.csproj", "{F2B0E777-A581-4E8D-81B5-DEEB1C89D9AB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
