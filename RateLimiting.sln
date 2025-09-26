@@ -9,6 +9,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MVVRus.Extensions.RateLimit
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MVVrus.AspNetCore.ActiveSession.RateLimiting", "MVVrus.AspNetCore.ActiveSession.RateLimiting\MVVrus.AspNetCore.ActiveSession.RateLimiting.csproj", "{F2B0E777-A581-4E8D-81B5-DEEB1C89D9AB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MVVRus.AspNetCore.RateLimiting.Tests", "MVVRus.AspNetCore.RateLimiting.Tests\MVVRus.AspNetCore.RateLimiting.Tests.csproj", "{89A5978E-AB99-4858-A700-979A23541054}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{F2B0E777-A581-4E8D-81B5-DEEB1C89D9AB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F2B0E777-A581-4E8D-81B5-DEEB1C89D9AB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F2B0E777-A581-4E8D-81B5-DEEB1C89D9AB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{89A5978E-AB99-4858-A700-979A23541054}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{89A5978E-AB99-4858-A700-979A23541054}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{89A5978E-AB99-4858-A700-979A23541054}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{89A5978E-AB99-4858-A700-979A23541054}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
