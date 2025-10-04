@@ -71,21 +71,25 @@
 
         public Task<Boolean> WaitAsync(TimeSpan timeout)
         {
+            CheckTimeout(timeout);
             return WaitAsync(ConvertTimeoutToMsecs(timeout));
         }
 
         public Task<Boolean> WaitAsync(TimeSpan timeout, CancellationToken cancellationToken)
         {
+            CheckTimeout(timeout);
             return WaitAsync(ConvertTimeoutToMsecs(timeout), cancellationToken);
         }
 
         public Task<Boolean> WaitAsync(Int32 msecsTimeout)
         {
+            CheckTimeout(msecsTimeout);
             return WaitAsync(msecsTimeout, CancellationToken.None);
         }
 
         public Task<Boolean> WaitAsync(Int32 msecsTimeout, CancellationToken cancellationToken)
         {
+            CheckTimeout(msecsTimeout);
             CheckDisposed();
             TaskCompletionSource tcs = Volatile.Read(ref _signalWaiterTcs);
             if(tcs.Task.IsCompleted) {
@@ -110,6 +114,16 @@
         Int32 ConvertTimeoutToMsecs(TimeSpan timeout)
         {
             return timeout == Timeout.InfiniteTimeSpan ? Timeout.Infinite: (Int32)timeout.TotalMicroseconds;
+        }
+
+        void CheckTimeout(Int32 msecsTimeout)
+        {
+            if(msecsTimeout<0 && msecsTimeout!=Timeout.Infinite) throw new ArgumentOutOfRangeException(nameof(msecsTimeout));
+        }
+
+        void CheckTimeout(TimeSpan timeout)
+        {
+            if(timeout<TimeSpan.Zero && timeout!=Timeout.InfiniteTimeSpan) throw new ArgumentOutOfRangeException(nameof(timeout));
         }
 
         class ResultTaskClosure
