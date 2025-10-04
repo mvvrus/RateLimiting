@@ -13,7 +13,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MVVRus.AspNetCore.RateLimit
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MVVRus.Threading.AsyncSynchroPrimitives", "MVVRus.Threading.AsyncSynchroPrimitives\MVVRus.Threading.AsyncSynchroPrimitives.csproj", "{205E6E0F-F7E3-4B46-B83D-6740A18DB0E3}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MVVRus.Threading.AsyncSynchroPrimitives.Tests", "MVVRus.Threading.AsyncSynchroPrimitiveTests\MVVRus.Threading.AsyncSynchroPrimitives.Tests.csproj", "{65BA24BA-EB3D-403A-8BBB-AA9509350BA2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MVVRus.Threading.AsyncSynchroPrimitives.Tests", "MVVRus.Threading.AsyncSynchroPrimitives.Tests\MVVRus.Threading.AsyncSynchroPrimitives.Tests.csproj", "{65BA24BA-EB3D-403A-8BBB-AA9509350BA2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
