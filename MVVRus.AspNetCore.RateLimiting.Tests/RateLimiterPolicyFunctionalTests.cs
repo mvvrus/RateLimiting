@@ -14,7 +14,7 @@ using static Microsoft.AspNetCore.Http.StatusCodes;
 
 namespace MVVRus.AspNetCore.RateLimiting.Tests
 {
-    public class DelegatedRateLimiterPolicyTest
+    public class RateLimiterPolicyFunctionalTests
     {
         [Fact(Timeout = 0)]
         public async Task TestOfTests()
