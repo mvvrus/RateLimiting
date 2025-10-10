@@ -13,20 +13,24 @@ namespace MVVRus.AspNetCore.RateLimiting.Tests
         Action<HttpContext>? _preLimiterHandler;
         RequestDelegate? _terminalHandler;
         EndpointData[] _endpoints;
+        Func<IApplicationBuilder, IApplicationBuilder>? _preConfigure;
 
         public TestRateLimiterAppConfig(Action<RateLimiterOptions> configureLimiter,
             Action<HttpContext>? preLimiterHandler,
             RequestDelegate? terminalHandler,
-            EndpointData[]? endpoints=null)
+            EndpointData[]? endpoints=null,
+            Func<IApplicationBuilder, IApplicationBuilder>? preConfigure=null)
         {
             _configureLimiter=configureLimiter;
             _preLimiterHandler = preLimiterHandler;
             _terminalHandler=terminalHandler;
+            _preConfigure=preConfigure;
             _endpoints = endpoints ?? new EndpointData[0];
         }
 
         protected override void Configure(IApplicationBuilder app)
         {
+            if(_preConfigure!=null) _preConfigure(app);
             if(_preLimiterHandler!=null)
                 app.Use(next => async context => { _preLimiterHandler(context); await next(context); });
             app.UseRateLimiter();

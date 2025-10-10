@@ -17,7 +17,7 @@ namespace MVVRus.AspNetCore.RateLimiting.Tests
     public class RateLimiterPolicyFunctionalTests
     {
         [Fact(Timeout = 0)]
-        public async Task TestOfTests()
+        public async Task SelectiveRateLimiterPolicyFunctionalTest()
         {
             int i;
             Int32 num_requests, limit = 5;
@@ -50,7 +50,8 @@ namespace MVVRus.AspNetCore.RateLimiting.Tests
                 // new TestRateLimiterAppConfig.EndpointData(path2, TerminalHandler, TestRateLimiterAppConfig.EndpointData.MakeConfigurator(policy_name)),
             };
             HttpContext context;
-            TestRateLimiterAppConfig tac = new TestRateLimiterAppConfig(SetLimiterOptions, PreLimiterHandler, TerminalHandler,endpoints);
+            TestRateLimiterAppConfig tac = new TestRateLimiterAppConfig(
+                SetLimiterOptions, PreLimiterHandler, TerminalHandler,endpoints, PreConfigure);
             IHostBuilder host_builder = new HostBuilder().ConfigureWebHost(tac.ConfigureTestApp);
             IHost host = await host_builder.StartAsync();
             TestServer server = host.GetTestServer();
@@ -71,17 +72,19 @@ namespace MVVRus.AspNetCore.RateLimiting.Tests
             for(i=0; i<num_requests; i++) {
                 context = await sendResults[i];
                 if(i%(limit+1) < limit) Assert.Equal(Status204NoContent, context.Response.StatusCode);
-                else Assert.Equal(Status503ServiceUnavailable ,context.Response.StatusCode);
+                else Assert.Equal(Status429TooManyRequests ,context.Response.StatusCode);
             }
 
             void SetLimiterOptions(RateLimiterOptions options)
             {
-                //options.GlobalLimiter = PartitionedRateLimiter.Create(
-                DelegatedRateLimiterPolicy<String> policy = new DelegatedRateLimiterPolicy<String>(
-                    (HttpContext ctx) => RateLimitPartition.GetFixedWindowLimiter(
-                        ctx.User.Identity?.Name??"", _ => new FixedWindowRateLimiterOptions() { PermitLimit=limit, Window=TimeSpan.FromSeconds(20)}
-                    )
+                PartitionedRateLimiter<HttpContext> limiter = PartitionedRateLimiter.Create(
+                        (HttpContext ctx) => RateLimitPartition.GetConcurrencyLimiter(
+                        ctx.User.Identity?.Name??"", _ => new ConcurrencyLimiterOptions() { PermitLimit=limit })
+
                 );
+                SelectiveRateLimiterPolicy policy = new SelectiveRateLimiterPolicy(
+                    limiter,
+                    SetStatusCode429);
                 options.AddPolicy(policy_name, policy);
             }
 
@@ -95,10 +98,24 @@ namespace MVVRus.AspNetCore.RateLimiting.Tests
             {
                 quorum_reached.Signal();
             }
+
+            ValueTask SetStatusCode429(OnRejectedContext context, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                context.HttpContext.Response.StatusCode=Status429TooManyRequests;
+                return ValueTask.CompletedTask;
+            }
+
+            IApplicationBuilder PreConfigure(IApplicationBuilder app)
+            {
+                app.UseBackLink();
+                return app;
+            }
+
         }
 
         [Fact(Timeout=0)]
-        public async Task CreatedPolicyFunctionalTest()
+        public async Task DelegatedRateLimiterPolicyFunctionalTest()
         {
             int i;
             Int32 num_requests, limit = 5;
@@ -131,7 +148,8 @@ namespace MVVRus.AspNetCore.RateLimiting.Tests
                 // new TestRateLimiterAppConfig.EndpointData(path2, TerminalHandler, TestRateLimiterAppConfig.EndpointData.MakeConfigurator(policy_name)),
             };
             HttpContext context;
-            TestRateLimiterAppConfig tac = new TestRateLimiterAppConfig(SetLimiterOptions, PreLimiterHandler, TerminalHandler, endpoints);
+            TestRateLimiterAppConfig tac = new TestRateLimiterAppConfig(
+                SetLimiterOptions, PreLimiterHandler, TerminalHandler, endpoints);
             IHostBuilder host_builder = new HostBuilder().ConfigureWebHost(tac.ConfigureTestApp);
             IHost host = await host_builder.StartAsync();
             TestServer server = host.GetTestServer();
