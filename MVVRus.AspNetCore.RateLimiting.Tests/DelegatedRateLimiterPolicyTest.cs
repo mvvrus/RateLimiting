@@ -7,84 +7,186 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System.Threading.RateLimiting;
 using MVVRus.Threading.AsyncSynchroPrimitives;
+using System.Security.Claims;
+using System.Security.Principal;
+using Microsoft.AspNetCore.RateLimiting;
+using static Microsoft.AspNetCore.Http.StatusCodes;
 
 namespace MVVRus.AspNetCore.RateLimiting.Tests
 {
     public class DelegatedRateLimiterPolicyTest
     {
         [Fact(Timeout = 0)]
-        public async Task Test1()
+        public async Task TestOfTests()
         {
             int i;
-            Int32 num_requests = 6, limit = 5;
-            ThisTestAppConfig tac = new ThisTestAppConfig(num_requests);
+            Int32 num_requests, limit = 5;
+            Int32 num_passes = 2;
+            num_requests = (limit+1)*num_passes+1;
+
+            String path1 = "/ping", path2 = "/other";
+            String policy_name = "ping_policy";
+
+            ClaimsPrincipal user1 = new ClaimsPrincipal(new GenericIdentity("USER1"));
+            ClaimsPrincipal user2 = new ClaimsPrincipal(new GenericIdentity("USER2"));
+
+            ClaimsPrincipal GetUser(int n)
+            {
+                return n<limit+1? user1: user2;
+            }
+
+            String GetPath(int n)
+            {
+                return n<(limit+1)*num_passes ? path1 : path2;
+            }
+
+            AsyncManualResetEvent can_proceed = new AsyncManualResetEvent();
+            AsyncCountdownEvent quorum_reached = new AsyncCountdownEvent(num_requests);
+
+            TestRateLimiterAppConfig.EndpointData[] endpoints = //new TestRateLimiterAppConfig.EndpointData[]
+            {
+                new TestRateLimiterAppConfig.EndpointData(path1, TerminalHandler, TestRateLimiterAppConfig.EndpointData.MakeConfigurator(policy_name)),
+                // Uncomment to fail:
+                // new TestRateLimiterAppConfig.EndpointData(path2, TerminalHandler, TestRateLimiterAppConfig.EndpointData.MakeConfigurator(policy_name)),
+            };
+            HttpContext context;
+            TestRateLimiterAppConfig tac = new TestRateLimiterAppConfig(SetLimiterOptions, PreLimiterHandler, TerminalHandler,endpoints);
             IHostBuilder host_builder = new HostBuilder().ConfigureWebHost(tac.ConfigureTestApp);
             IHost host = await host_builder.StartAsync();
             TestServer server = host.GetTestServer();
             server.BaseAddress = new Uri("http://localhost/");
-            HttpContext context;
+
             Task<HttpContext>[] sendResults = new Task<HttpContext>[num_requests];
             for(i = 0; i < num_requests; i++) {
-                sendResults[i] = server.SendAsync(ctx=>ctx.Request.Path="/ping", default);
+                ClaimsPrincipal user = GetUser(i);
+                String path = GetPath(i);
+                sendResults[i] = server.SendAsync(ctx => { ctx.Request.Path=path; ctx.User = user; }, default);
+                await Task.Yield();
             }
-            await tac.QuorumEvent.WaitAsync();
-            tac.Continue();
+
+            await quorum_reached.WaitAsync();
+            await Task.Yield();
+            can_proceed.Set();
 
             for(i=0; i<num_requests; i++) {
                 context = await sendResults[i];
-                if (i<limit) Assert.InRange(context.Response.StatusCode, 200, 299);
-                else Assert.NotInRange(context.Response.StatusCode, 200, 299);
+                if(i%(limit+1) < limit) Assert.Equal(Status204NoContent, context.Response.StatusCode);
+                else Assert.Equal(Status503ServiceUnavailable ,context.Response.StatusCode);
             }
 
+            void SetLimiterOptions(RateLimiterOptions options)
+            {
+                //options.GlobalLimiter = PartitionedRateLimiter.Create(
+                DelegatedRateLimiterPolicy<String> policy = new DelegatedRateLimiterPolicy<String>(
+                    (HttpContext ctx) => RateLimitPartition.GetFixedWindowLimiter(
+                        ctx.User.Identity?.Name??"", _ => new FixedWindowRateLimiterOptions() { PermitLimit=limit, Window=TimeSpan.FromSeconds(20)}
+                    )
+                );
+                options.AddPolicy(policy_name, policy);
+            }
+
+            async Task TerminalHandler(HttpContext ctx)
+            {
+                ctx.Response.StatusCode=Status204NoContent;
+                await can_proceed.WaitAsync(); 
+            }
+
+            void PreLimiterHandler(HttpContext context)
+            {
+                quorum_reached.Signal();
+            }
         }
 
-
-
-        class ThisTestAppConfig : TestAppConfig
+        [Fact(Timeout=0)]
+        public async Task CreatedPolicyFunctionalTest()
         {
-            AsyncManualResetEvent _mre;
-            public AsyncCountdownEvent QuorumEvent { get; }
+            int i;
+            Int32 num_requests, limit = 5;
+            Int32 num_passes = 2;
+            num_requests = (limit+1)*num_passes+1;
 
-            public ThisTestAppConfig(Int32 quorumCount)
+            String path1 = "/ping", path2 = "/other";
+            String policy_name = "ping_policy";
+
+            ClaimsPrincipal user1 = new ClaimsPrincipal(new GenericIdentity("USER1"));
+            ClaimsPrincipal user2 = new ClaimsPrincipal(new GenericIdentity("USER2"));
+
+            ClaimsPrincipal GetUser(int n)
             {
-                _mre=new AsyncManualResetEvent();
-                QuorumEvent = new AsyncCountdownEvent(quorumCount);
+                return n<limit+1 ? user1 : user2;
             }
 
-            public void Continue()
+            String GetPath(int n)
             {
-                _mre.Set();
+                return n<(limit+1)*num_passes ? path1 : path2;
             }
 
-            protected override void Configure(IApplicationBuilder app)
+            AsyncManualResetEvent can_proceed = new AsyncManualResetEvent();
+            AsyncCountdownEvent quorum_reached = new AsyncCountdownEvent(num_requests);
+
+            TestRateLimiterAppConfig.EndpointData[] endpoints = //new TestRateLimiterAppConfig.EndpointData[]
             {
-                app.Use(next => async context=>{ QuorumEvent.Signal(); await next(context); });
-                app.UseRateLimiter();
-                base.Configure(app);
+                new TestRateLimiterAppConfig.EndpointData(path1, TerminalHandler, TestRateLimiterAppConfig.EndpointData.MakeConfigurator(policy_name)),
+                // Uncomment to fail:
+                // new TestRateLimiterAppConfig.EndpointData(path2, TerminalHandler, TestRateLimiterAppConfig.EndpointData.MakeConfigurator(policy_name)),
+            };
+            HttpContext context;
+            TestRateLimiterAppConfig tac = new TestRateLimiterAppConfig(SetLimiterOptions, PreLimiterHandler, TerminalHandler, endpoints);
+            IHostBuilder host_builder = new HostBuilder().ConfigureWebHost(tac.ConfigureTestApp);
+            IHost host = await host_builder.StartAsync();
+            TestServer server = host.GetTestServer();
+            server.BaseAddress = new Uri("http://localhost/");
+
+            Task<HttpContext>[] sendResults = new Task<HttpContext>[num_requests];
+            for(i = 0; i < num_requests; i++) {
+                ClaimsPrincipal user = GetUser(i);
+                String path = GetPath(i);
+                sendResults[i] = server.SendAsync(ctx => { ctx.Request.Path=path; ctx.User = user; }, default);
+                await Task.Yield();
             }
 
-            protected override void ConfigureRest(IApplicationBuilder app)
-            {
-                app.Run(async ctx => { await _mre.WaitAsync(); ctx.Response.StatusCode=StatusCodes.Status204NoContent; });
-                base.ConfigureRest(app);
+            await quorum_reached.WaitAsync();
+            await Task.Yield();
+            can_proceed.Set();
+
+            for(i=0; i<num_requests; i++) {
+                context = await sendResults[i];
+                if(i%(limit+1) < limit) Assert.Equal(Status204NoContent, context.Response.StatusCode);
+                else Assert.Equal(Status429TooManyRequests, context.Response.StatusCode);
             }
 
-            protected override void ConfigureRouting(IEndpointRouteBuilder builder)
+            void SetLimiterOptions(RateLimiterOptions options)
             {
-                base.ConfigureRouting(builder);
+                //options.GlobalLimiter = PartitionedRateLimiter.Create(
+                DelegatedRateLimiterPolicy<String> policy = new DelegatedRateLimiterPolicy<String>(
+                    (HttpContext ctx) => RateLimitPartition.GetConcurrencyLimiter(
+                        ctx.User.Identity?.Name??"", _ => new ConcurrencyLimiterOptions() { PermitLimit=limit}
+                    ),
+                    SetStatusCode429
+                );
+                options.AddPolicy(policy_name, policy);
             }
 
-            protected override void ConfigureServices(IServiceCollection services)
+            async Task TerminalHandler(HttpContext ctx)
             {
-                services.AddRateLimiter(options => {
-                    options.GlobalLimiter = PartitionedRateLimiter.Create(
-                        (HttpContext ctx)=>RateLimitPartition.GetConcurrencyLimiter(
-                            0, _ => new ConcurrencyLimiterOptions() { PermitLimit=5}
-                        )
-                    );
-                });
-                base.ConfigureServices(services);
+                ctx.Response.StatusCode=Status204NoContent;
+                await can_proceed.WaitAsync();
+            }
+
+            void PreLimiterHandler(HttpContext context)
+            {
+                quorum_reached.Signal();
+            }
+
+            ValueTask SetStatusCode429(OnRejectedContext context,CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                context.HttpContext.Response.StatusCode=Status429TooManyRequests;
+                return ValueTask.CompletedTask;
             }
         }
+
+
+
     }
 }
