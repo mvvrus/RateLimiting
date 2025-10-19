@@ -6,7 +6,7 @@ namespace MVVRus.AspNetCore.RateLimiting
     public class DelegatedRateLimiterPolicy<TPartitionKey> : IRateLimiterPolicy<TPartitionKey>
     {
         Func<HttpContext, RateLimitPartition<TPartitionKey>> _partitioner;
-        public Func<OnRejectedContext, CancellationToken, ValueTask>? OnRejected { get; init; }
+        public Func<OnRejectedContext, CancellationToken, ValueTask>? OnRejected { get; }
 
         public DelegatedRateLimiterPolicy(Func<HttpContext, RateLimitPartition<TPartitionKey>> partitioner, 
             Func<OnRejectedContext, CancellationToken, ValueTask>? onRejected = null)
