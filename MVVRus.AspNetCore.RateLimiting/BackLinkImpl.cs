@@ -1,5 +1,5 @@
 ﻿
-using Microsoft.Extensions.Primitives;
+using System.Runtime.CompilerServices;
 
 namespace MVVRus.AspNetCore.RateLimiting
 {
@@ -10,19 +10,15 @@ namespace MVVRus.AspNetCore.RateLimiting
         static Int64 s_key = 0;
         HttpContext? _backLink;
         Int64 _key;
-        CancellationTokenSource _tokenSource;
-        CancellationChangeToken _token;
+
+        public event EventHandler? DisposedEvent;
 
         public HttpContext BackLink => Volatile.Read(ref  _backLink)??throw new InvalidOperationException("No HttpContext backlink exists.");
         
-        public IChangeToken ChangeToken => _token;
-
         internal BackLinkImpl(HttpContext context)
         {
             _backLink = context;
             _key=Interlocked.Increment(ref s_key);
-            _tokenSource = new CancellationTokenSource();
-            _token = new CancellationChangeToken(_tokenSource.Token);
         }
 
         public override Int32 GetHashCode()
@@ -49,9 +45,14 @@ namespace MVVRus.AspNetCore.RateLimiting
 
         public void Dispose()
         {
-            _tokenSource.Cancel();
-            _tokenSource.Dispose();
+            EventHandler? t = Volatile.Read(ref DisposedEvent);
+            FireEvent(t);
             Interlocked.Exchange(ref _backLink, null);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        void FireEvent(EventHandler? handler) { 
+            handler?.Invoke(this, EventArgs.Empty); 
         }
     }
 }

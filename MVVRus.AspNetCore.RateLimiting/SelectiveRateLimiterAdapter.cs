@@ -6,57 +6,60 @@ namespace MVVRus.AspNetCore.RateLimiting
     public class SelectiveRateLimiterAdapter: RateLimiter
     {
         PartitionedRateLimiter<HttpContext> _limiter;
-        IHttpContextBackLinkFeature _key;
-        IDisposable? _backlinkDisposeReg;
-        static Action<Object?> _backlinkDisposeCallback= BacklinkDisposeCallback;
+        IHttpContextBackLinkFeature? _key;
 
         public SelectiveRateLimiterAdapter(PartitionedRateLimiter<HttpContext> limiter, IHttpContextBackLinkFeature key)
         {
             _limiter = limiter;
             _key = key;
-            IChangeToken token = _key.ChangeToken;
-            if(!token.ActiveChangeCallbacks) 
-                throw new InvalidOperationException("SelectiveRateLimiterAdapter: change token doesn't support a callback.");
-            _backlinkDisposeReg = token.RegisterChangeCallback(_backlinkDisposeCallback, this);
+            _key.DisposedEvent+= BacklinkDisposeCallback;
         }
 
-        public override TimeSpan? IdleDuration => Volatile.Read(ref _backlinkDisposeReg) is null? TimeSpan.MaxValue : null;
+        public override TimeSpan? IdleDuration => Volatile.Read(ref _key) is null? TimeSpan.MaxValue : null;
 
         public override RateLimiterStatistics? GetStatistics()
         {
-            return _limiter.GetStatistics(_key.BackLink);
+            IHttpContextBackLinkFeature? key = Volatile.Read(ref _key);
+            if(key == null) throw new ObjectDisposedException(nameof(GetStatistics));
+            return _limiter.GetStatistics(key.BackLink);
         }
 
         protected override ValueTask<RateLimitLease> AcquireAsyncCore(Int32 permitCount, CancellationToken cancellationToken)
         {
-            return _limiter.AcquireAsync(_key.BackLink, permitCount, cancellationToken);
+            IHttpContextBackLinkFeature? key = Volatile.Read(ref _key);
+            if(key == null) throw new ObjectDisposedException(nameof(AcquireAsyncCore));
+            return _limiter.AcquireAsync(key.BackLink, permitCount, cancellationToken);
         }
 
         protected override RateLimitLease AttemptAcquireCore(Int32 permitCount)
         {
-            return _limiter.AttemptAcquire(_key.BackLink, permitCount);
+            IHttpContextBackLinkFeature? key = Volatile.Read(ref _key);
+            if(key == null) throw new ObjectDisposedException(nameof(AttemptAcquireCore));
+            return _limiter.AttemptAcquire(key.BackLink, permitCount);
         }
 
         protected override void Dispose(Boolean disposing)
         {
-            if(disposing) ReleaseBackLinkDisposeReg()?.Dispose();
+            if(disposing) UnregisterDisposeCallback();
             base.Dispose(disposing);
         }
 
         protected override ValueTask DisposeAsyncCore()
         {
-            ReleaseBackLinkDisposeReg()?.Dispose();
+            UnregisterDisposeCallback();
+            //ReleaseBackLinkDisposeReg()?.Dispose();
             return base.DisposeAsyncCore(); 
         }
 
-        IDisposable? ReleaseBackLinkDisposeReg()
+        void UnregisterDisposeCallback()
         {
-            return Interlocked.Exchange(ref _backlinkDisposeReg, null);
+            IHttpContextBackLinkFeature? key = Interlocked.Exchange(ref _key, null);
+            if(key!=null) key.DisposedEvent-=BacklinkDisposeCallback;
         }
 
-        static void BacklinkDisposeCallback(Object? this_ref) 
+        void BacklinkDisposeCallback(Object? sender, EventArgs e) 
         {
-            ((SelectiveRateLimiterAdapter?)this_ref)?.ReleaseBackLinkDisposeReg();
+            UnregisterDisposeCallback();
         }
     }
 }
