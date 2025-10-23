@@ -62,7 +62,7 @@ namespace MVVRus.AspNetCore.RateLimiting.Tests
                 ClaimsPrincipal user = GetUser(i);
                 String path = GetPath(i);
                 sendResults[i] = server.SendAsync(ctx => { ctx.Request.Path=path; ctx.User = user; }, default);
-                await Task.Yield();
+                await Task.Delay(10);
             }
 
             await quorum_reached.WaitAsync();
@@ -160,7 +160,7 @@ namespace MVVRus.AspNetCore.RateLimiting.Tests
                 ClaimsPrincipal user = GetUser(i);
                 String path = GetPath(i);
                 sendResults[i] = server.SendAsync(ctx => { ctx.Request.Path=path; ctx.User = user; }, default);
-                await Task.Yield();
+                await Task.Delay(10);
             }
 
             await quorum_reached.WaitAsync();
