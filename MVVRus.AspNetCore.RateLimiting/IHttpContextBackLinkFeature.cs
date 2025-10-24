@@ -5,7 +5,6 @@ namespace MVVRus.AspNetCore.RateLimiting
     public interface IHttpContextBackLinkFeature: IDisposable, IEquatable<IHttpContextBackLinkFeature>
     {
         HttpContext BackLink { get; }
-        //IChangeToken ChangeToken { get; }
         event EventHandler DisposedEvent;
     }
 }

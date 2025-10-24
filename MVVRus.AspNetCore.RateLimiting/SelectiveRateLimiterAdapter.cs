@@ -3,7 +3,7 @@ using System.Threading.RateLimiting;
 
 namespace MVVRus.AspNetCore.RateLimiting
 {
-    public class SelectiveRateLimiterAdapter: RateLimiter
+    public sealed class SelectiveRateLimiterAdapter: RateLimiter
     {
         PartitionedRateLimiter<HttpContext> _limiter;
         IHttpContextBackLinkFeature? _key;
@@ -47,7 +47,6 @@ namespace MVVRus.AspNetCore.RateLimiting
         protected override ValueTask DisposeAsyncCore()
         {
             UnregisterDisposeCallback();
-            //ReleaseBackLinkDisposeReg()?.Dispose();
             return base.DisposeAsyncCore(); 
         }
 
@@ -59,7 +58,7 @@ namespace MVVRus.AspNetCore.RateLimiting
 
         void BacklinkDisposeCallback(Object? sender, EventArgs e) 
         {
-            UnregisterDisposeCallback();
+            Dispose();
         }
     }
 }
