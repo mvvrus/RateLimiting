@@ -28,7 +28,6 @@ namespace MVVRus.AspNetCore.RateLimiting
         RateLimiter Factory (IHttpContextBackLinkFeature key)
         {
             return new SelectiveRateLimiterAdapter(_limiter, key);
-            throw new NotImplementedException();
         }
     }
 }
