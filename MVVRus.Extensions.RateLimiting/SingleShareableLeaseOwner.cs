@@ -1,6 +1,7 @@
 ﻿
 
 
+using System.Runtime.CompilerServices;
 using System.Threading.RateLimiting;
 
 namespace MVVRus.Extensions.RateLimiting
@@ -9,6 +10,15 @@ namespace MVVRus.Extensions.RateLimiting
     {
         IRawRateLimiter<TResource> _rawLimiter;
         ILeaseContainer _container;
+        Int32 _disposedValue=0;
+
+        public event EventHandler? DisposedEvent;
+
+        public SingleShareableLeaseOwner(IRawRateLimiter<TResource> rawLimiter, ILeaseContainer container)
+        {
+            _rawLimiter = rawLimiter;
+            _container = container;
+        }
 
         public DerivedLease AcquireLease(TResource resource, Int32 permitCount)
         {
@@ -47,9 +57,33 @@ namespace MVVRus.Extensions.RateLimiting
             return (lease.IsAcquired) ? _container.TrySetLease(ref lease) : false;
         }
 
-        private DerivedLease MakeDerived(RateLimitLease lease, Int32 permitCount)
+        protected virtual DerivedLease MakeDerived(RateLimitLease lease, Int32 permitCount)
         {
             return new DerivedLease(this, lease.IsAcquired, permitCount,lease.GetAllMetadata().ToDictionary());
+        }
+
+        protected virtual void Dispose(Boolean disposing)
+        {
+            if(disposing) {
+                EventHandler? t = Volatile.Read(ref DisposedEvent);
+                FireEvent(t);
+            }
+        }
+
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            Int32 disposedValue = Interlocked.Exchange(ref _disposedValue, 1);
+            if(disposedValue>0) {
+                Dispose(disposing: true);
+                GC.SuppressFinalize(this);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        void FireEvent(EventHandler? handler)
+        {
+            handler?.Invoke(this, EventArgs.Empty);
         }
     }
 }

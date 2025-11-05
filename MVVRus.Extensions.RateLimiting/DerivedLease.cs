@@ -8,14 +8,14 @@ namespace MVVRus.Extensions.RateLimiting
         IShareableLeaseOwner? _owner;
         IDictionary<String, Object?> _metadata;
 
-
-
+        volatile Boolean _need_release = true;
 
         public DerivedLease(IShareableLeaseOwner owner, Boolean isAcquired, Int32 permitCount, IDictionary<String,Object?> metadata)
         {
             _owner=owner;
             IsAcquired=isAcquired;
             _metadata=metadata;
+            _owner.DisposedEvent+=OwnerDisposeHandler;
         }
 
 
@@ -29,10 +29,20 @@ namespace MVVRus.Extensions.RateLimiting
 
         public Int32 PermitCount { get; }
 
+        void OwnerDisposeHandler(Object? Sender, EventArgs toIgnore)
+        {
+            _need_release=false;
+            Dispose();
+        }
+
+
         protected override void Dispose(Boolean disposing)
         {
-            IShareableLeaseOwner? owner=Interlocked.Exchange(ref _owner, null);
-            owner?.Release(this);
+            if(disposing) {
+                IShareableLeaseOwner? owner = Interlocked.Exchange(ref _owner, null);
+                if(owner != null) owner.DisposedEvent -= OwnerDisposeHandler;
+                if(_need_release) owner?.Release(this);
+            }
         }
     }
 }
