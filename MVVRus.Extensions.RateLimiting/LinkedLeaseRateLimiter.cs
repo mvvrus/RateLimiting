@@ -11,20 +11,25 @@ namespace MVVRus.Extensions.RateLimiting
     {
         PartitionedRateLimiter<TResource> _baseLimiter;
 
+        protected readonly Func<TResource, TPartitionKey> _keyExtractor;
         protected abstract IShareableLeaseOwner<TResource> GetLeaseStore(TResource resource);
 
         public LinkedLeaseRateLimiter(Func<TResource, TPartitionKey> keyExtractor,
-            Func<TPartitionKey, RateLimitPartition<TPartitionKey>> partitionMaker)
+            Func<TPartitionKey, RateLimitPartition<TPartitionKey>> partitionMaker, 
+            IEqualityComparer<TPartitionKey>? equalityComparer = null)
 
         {
-            _baseLimiter = PartitionedRateLimiter.Create(MakePartitioner(keyExtractor,partitionMaker));
+            _keyExtractor = keyExtractor;
+            _baseLimiter = PartitionedRateLimiter.Create(MakePartitioner(keyExtractor,partitionMaker),equalityComparer);
         }
 
         public LinkedLeaseRateLimiter(Func<TResource, TPartitionKey> keyExtractor,
-            Func<TPartitionKey, Func<TPartitionKey, RateLimiter>> limiterMaker)
+            Func<TPartitionKey, Func<TPartitionKey, RateLimiter>> limiterMaker, 
+            IEqualityComparer<TPartitionKey>? equalityComparer = null)
 
         {
-            _baseLimiter = PartitionedRateLimiter.Create(MakePartitioner(keyExtractor, limiterMaker));
+            _keyExtractor = keyExtractor;
+            _baseLimiter = PartitionedRateLimiter.Create(MakePartitioner(keyExtractor, limiterMaker), equalityComparer);
         }
 
         public override RateLimiterStatistics? GetStatistics(TResource resource)

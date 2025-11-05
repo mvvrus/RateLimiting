@@ -6,7 +6,7 @@ using System.Threading.RateLimiting;
 
 namespace MVVRus.Extensions.RateLimiting
 {
-    public abstract class SingleShareableLeaseOwner<TResource> : IShareableLeaseOwner<TResource>
+    public class SingleShareableLeaseOwner<TResource> : IShareableLeaseOwner<TResource>
     {
         IRawRateLimiter<TResource> _rawLimiter;
         ILeaseContainer _container;
