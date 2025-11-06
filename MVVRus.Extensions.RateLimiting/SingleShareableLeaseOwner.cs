@@ -62,8 +62,9 @@ namespace MVVRus.Extensions.RateLimiting
                 lease = await current_lease_task;
                 must_dispose_lease = !TryStoreLease(ref lease);
                 RateLimitLease placeholder;
+                Task? abandoned;
                 if(!lease.IsAcquired && !_container.TryGetLease(out placeholder)) 
-                    Volatile.Write(ref _rawLeaseTask, null); //Plan to acquire a permissive lease ones more
+                    abandoned = Interlocked.CompareExchange(ref _rawLeaseTask, null, current_lease_task); //Plan to acquire a permissive lease ones more
             }
             DerivedLease result = MakeDerived(lease, permitCount);
             if(must_dispose_lease) lease.Dispose();
