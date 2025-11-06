@@ -11,6 +11,7 @@ namespace MVVRus.Extensions.RateLimiting
         IRawRateLimiter<TResource> _rawLimiter;
         ILeaseContainer _container;
         Int32 _disposedValue=0;
+        Task<RateLimitLease>? _rawLeaseTask=null;
 
         public event EventHandler? DisposedEvent;
 
@@ -36,13 +37,34 @@ namespace MVVRus.Extensions.RateLimiting
         public async ValueTask<DerivedLease> AcquireLeaseAsync(TResource resource, Int32 permitCount, CancellationToken cancellationToken)
         {
             RateLimitLease? lease;
-            Boolean must_dispose = false;
+            Boolean must_dispose_lease = false;
             if(!_container.TryGetLease(out lease)) {
-                lease = await _rawLimiter.AcquireAsync(resource, permitCount,cancellationToken);
-                must_dispose = !TryStoreLease(ref lease);
+                Task<RateLimitLease>? current_lease_task;
+                //No raw (i.e. base) lease yet. Try acquire it async
+                while((current_lease_task=Volatile.Read(ref _rawLeaseTask)) == null) {
+                    //TODO Use if statement instead?
+                    TaskCompletionSource start_tcs = new TaskCompletionSource();
+                    Task<RateLimitLease> new_raw_lease_task = start_tcs.Task.ContinueWith(
+                            task => _rawLimiter.AcquireAsync(resource, permitCount, cancellationToken).AsTask(),
+                            cancellationToken,
+                            TaskContinuationOptions.OnlyOnRanToCompletion,
+                            TaskScheduler.Default
+                        ).Unwrap();
+                    current_lease_task = Interlocked.CompareExchange(ref _rawLeaseTask, new_raw_lease_task, null);
+                    if(current_lease_task!=null)
+                        // _rawLeaseTask has been already set while we creating new_raw_lease_task
+                        start_tcs.SetCanceled();
+                    else {
+                        current_lease_task=new_raw_lease_task;
+                        start_tcs.TrySetResult();          //TODO Move from the loop&
+                    }
+                }
+                lease = await current_lease_task;
+                must_dispose_lease = !TryStoreLease(ref lease);
+                if(must_dispose_lease) Volatile.Write(ref _rawLeaseTask, null);
             }
             DerivedLease result = MakeDerived(lease, permitCount);
-            if(must_dispose) lease.Dispose();
+            if(must_dispose_lease) lease.Dispose();
             return result;
         }
 
@@ -51,7 +73,7 @@ namespace MVVRus.Extensions.RateLimiting
             //Nothing to do in this class
         }
 
-        private Boolean TryStoreLease(ref RateLimitLease lease)
+        Boolean TryStoreLease(ref RateLimitLease lease)
         //Return true only if the lease has been just stored successfully in the container so we are no more responsible for its cleanup
         {
             return (lease.IsAcquired) ? _container.TrySetLease(ref lease) : false;
