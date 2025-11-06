@@ -25,6 +25,7 @@ namespace MVVRus.Extensions.RateLimiting
         {
             RateLimitLease? lease;
             Boolean must_dispose = false;
+            if(permitCount>1) throw new NotImplementedException("Only 1-permit lease acquisition is supported.");
             if(!_container.TryGetLease(out lease)) {
                 lease = _rawLimiter.AttemptAcquire(resource, permitCount);
                 must_dispose = !TryStoreLease(ref lease);
@@ -38,12 +39,12 @@ namespace MVVRus.Extensions.RateLimiting
         {
             RateLimitLease? lease;
             Boolean must_dispose_lease = false;
+            if(permitCount>1) throw new NotImplementedException("Only 1-permit lease acquisition is supported.");
             if(!_container.TryGetLease(out lease)) {
                 Task<RateLimitLease>? current_lease_task;
-                //No raw (i.e. base) lease yet. Try acquire it async
+                //No raw (i.e. base) lease yet. Try to acquire it async
                 while((current_lease_task=Volatile.Read(ref _rawLeaseTask)) == null) {
-                    //TODO Use if statement instead?
-                    TaskCompletionSource start_tcs = new TaskCompletionSource();
+                    TaskCompletionSource start_tcs = new TaskCompletionSource(); //Used to delay the raw lease acquisition task
                     Task<RateLimitLease> new_raw_lease_task = start_tcs.Task.ContinueWith(
                             task => _rawLimiter.AcquireAsync(resource, permitCount, cancellationToken).AsTask(),
                             cancellationToken,
@@ -54,14 +55,15 @@ namespace MVVRus.Extensions.RateLimiting
                     if(current_lease_task!=null)
                         // _rawLeaseTask has been already set while we creating new_raw_lease_task
                         start_tcs.SetCanceled();
-                    else {
-                        current_lease_task=new_raw_lease_task;
-                        start_tcs.TrySetResult();          //TODO Move from the loop&
-                    }
+                    else 
+                        // Now we can allow raw lease acquisition task to be performed
+                        start_tcs.TrySetResult();          
                 }
                 lease = await current_lease_task;
                 must_dispose_lease = !TryStoreLease(ref lease);
-                if(must_dispose_lease) Volatile.Write(ref _rawLeaseTask, null);
+                RateLimitLease placeholder;
+                if(!lease.IsAcquired && !_container.TryGetLease(out placeholder)) 
+                    Volatile.Write(ref _rawLeaseTask, null); //Plan to acquire a permissive lease ones more
             }
             DerivedLease result = MakeDerived(lease, permitCount);
             if(must_dispose_lease) lease.Dispose();
