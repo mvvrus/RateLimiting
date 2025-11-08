@@ -70,7 +70,7 @@ namespace MVVRus.Extensions.RateLimiting
             {
                 TPartitionKey key = keyExtractor(resource);
                 return new RateLimitPartition<TPartitionKey>(key,
-                    partKey => new ManagedLifetimeLimiter(partitionMaker(partKey).Factory(partKey)));
+                    partKey => partitionMaker(partKey).Factory(partKey));
             }
         }
 
@@ -84,7 +84,7 @@ namespace MVVRus.Extensions.RateLimiting
             {
                 TPartitionKey key = keyExtractor(resource);
                 return new RateLimitPartition<TPartitionKey>(key,
-                    partKey => new ManagedLifetimeLimiter(limiterMaker(partKey)(partKey)));
+                    partKey => limiterMaker(partKey)(partKey));
             }
         }
     }
