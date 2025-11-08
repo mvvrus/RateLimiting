@@ -30,8 +30,8 @@ namespace MVVRus.Extensions.RateLimiting
                 lease = _rawLimiter.AttemptAcquire(resource, permitCount);
                 must_dispose = !TryStoreLease(ref lease);
             }
-            DerivedLease result = MakeDerived(lease, permitCount);
-            if(must_dispose) lease.Dispose();
+            DerivedLease result = MakeDerived(lease!, permitCount);
+            if(must_dispose) lease?.Dispose();
             return result;
         }
 
@@ -61,13 +61,13 @@ namespace MVVRus.Extensions.RateLimiting
                 }
                 lease = await current_lease_task;
                 must_dispose_lease = !TryStoreLease(ref lease);
-                RateLimitLease placeholder;
+                RateLimitLease? placeholder;
                 Task? abandoned;
                 if(!lease.IsAcquired && !_container.TryGetLease(out placeholder)) 
                     abandoned = Interlocked.CompareExchange(ref _rawLeaseTask, null, current_lease_task); //Plan to acquire a permissive lease ones more
             }
-            DerivedLease result = MakeDerived(lease, permitCount);
-            if(must_dispose_lease) lease.Dispose();
+            DerivedLease result = MakeDerived(lease!, permitCount);
+            if(must_dispose_lease) lease?.Dispose();
             return result;
         }
 

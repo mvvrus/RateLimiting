@@ -12,7 +12,7 @@ namespace MVVRus.Extensions.RateLimiting
         PartitionedRateLimiter<TResource> _baseLimiter;
 
         protected readonly Func<TResource, TPartitionKey> _keyExtractor;
-        protected abstract IShareableLeaseOwner<TResource> GetLeaseStore(TResource resource);
+        protected abstract IShareableLeaseOwner<TResource>? GetLeaseStore(TResource resource);
 
         public LinkedLeaseRateLimiter(Func<TResource, TPartitionKey> keyExtractor,
             Func<TPartitionKey, RateLimitPartition<TPartitionKey>> partitionMaker, 
@@ -39,14 +39,18 @@ namespace MVVRus.Extensions.RateLimiting
 
         protected override async ValueTask<RateLimitLease> AcquireAsyncCore(TResource resource, Int32 permitCount, CancellationToken cancellationToken)
         {
-            IShareableLeaseOwner<TResource> leaseStore = GetLeaseStore(resource);
-            return await leaseStore.AcquireLeaseAsync(resource, permitCount, cancellationToken); 
+            IShareableLeaseOwner<TResource>? leaseStore = GetLeaseStore(resource);
+            if(leaseStore!=null)
+                return await leaseStore.AcquireLeaseAsync(resource, permitCount, cancellationToken);
+            else return await _baseLimiter.AcquireAsync(resource,permitCount, cancellationToken);
         }
 
         protected override RateLimitLease AttemptAcquireCore(TResource resource, Int32 permitCount)
         {
-            IShareableLeaseOwner<TResource> leaseStore = GetLeaseStore(resource);
-            return leaseStore.AcquireLease(resource, permitCount);
+            IShareableLeaseOwner<TResource>? leaseStore = GetLeaseStore(resource);
+            if(leaseStore!=null)
+                return leaseStore.AcquireLease(resource, permitCount);
+            else return _baseLimiter.AttemptAcquire(resource, permitCount);
         }
 
         //Raw (base) lease acqusition methods

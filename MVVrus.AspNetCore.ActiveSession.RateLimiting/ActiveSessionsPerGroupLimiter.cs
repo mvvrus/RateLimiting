@@ -1,37 +1,56 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using MVVRus.Extensions.RateLimiting;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading.RateLimiting;
-using MVVRus.Extensions.RateLimiting;
 
 namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
 {
-    public class ActiveSessionsPerGroupLimiter : LimiterLeaseTranslator<HttpContext>
+    public class ActiveSessionsPerGroupLimiter : LinkedLeaseRateLimiter<HttpContext, ILocalSession>
     {
 
-        static Action<ManagedLifetimeLimiter, ILocalSession>  RegistrarDelegate = Registrar;
-        static RateLimitPartition<ILocalSession> NoLimiter=RateLimitPartition.GetNoLimiter<ILocalSession>(null!);
+        static Action<ManagedLifetimeLimiter, ILocalSession> RegistrarDelegate = Registrar;
 
-
-        public ActiveSessionsPerGroupLimiter(ConcurrencyLimiterOptions options): base (
-            PartitionedRateLimiter.Create(
-                (HttpContext context) => Partitioner(context, options),
-                Comparer)
-            ) {}
-
-        public override RateLimiterStatistics? GetStatistics(HttpContext context)
+        public ActiveSessionsPerGroupLimiter(ConcurrencyLimiterOptions options) 
+            : base(SessionGroupExtractor,
+                  PartitionerMaker(options),
+                  Comparer)
         {
-            return context.GetLocalSession().IsAvailable ? base.GetStatistics(context) : null;
+
         }
 
-        static RateLimitPartition<ILocalSession> Partitioner(HttpContext context, ConcurrencyLimiterOptions options)
-        {   
-            ILocalSession local_session = context.GetLocalSession();
+        protected override IShareableLeaseOwner<HttpContext>? GetLeaseStore(HttpContext context)
+        {
+
+            IActiveSession? active_session = context.GetActiveSession();
+            ActiveSessionLeaseInfo? lease_info = null;
+
+            if(active_session == null || !active_session.IsAvailable) return null;
+
+            try {
+                active_session.Properties.Add(ActiveSessionLeaseInfo.KEY, lease_info=new ActiveSessionLeaseInfo(this));
+                active_session.TakeOwnership(lease_info);
+            }
+            catch(ArgumentException) {
+                lease_info?.Dispose();
+                throw new InvalidOperationException($"An active session lease is already associated with the active session with Id={active_session.Id}");
+            }
+            catch {
+                lease_info?.Dispose();
+                throw;
+            }
+            return lease_info.LeaseOwner;
+        }
+
+        static Func<ILocalSession, RateLimitPartition<ILocalSession>> PartitionerMaker(ConcurrencyLimiterOptions options)
+        {
             // The section limiter must not become expired until the session group object is not disposed.
             // The session group of the context is always available due to HasAssociatedLease call in both lease acquisition methods,
             // so use ManagedLifetimeLimiter associated with the actual session group.
-            return ManagedLifetimePartition.GetManagedLifetimeLimiter(
-                context.GetLocalSession(),
-                key=>RateLimitPartition.GetConcurrencyLimiter(key, key=>options),
-                RegistrarDelegate);
+            return (ILocalSession local_session) => local_session.IsAvailable? 
+                    ManagedLifetimePartition.GetManagedLifetimeLimiter(
+                        local_session,
+                        key => RateLimitPartition.GetConcurrencyLimiter(key, key => options),
+                        RegistrarDelegate) 
+                : RateLimitPartition.GetNoLimiter(local_session);
         }
 
         static void Registrar(ManagedLifetimeLimiter limiter, ILocalSession sessionGroup)
@@ -50,32 +69,6 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
             }
         }
 
-        protected override RateLimitLease TranslateLease(RateLimitLease lease, HttpContext context)
-        {
-            IActiveSession active_session = context.GetActiveSession();
-            if(!lease.IsAcquired) return lease;
-            try {
-                active_session.Properties.Add(ActiveSessionLeaseInfo.KEY, new ActiveSessionLeaseInfo(lease));
-                active_session.TakeOwnership(lease);
-            }
-            catch(ArgumentException) {
-                lease.Dispose();
-                throw new InvalidOperationException($"An active session lease is already associated with the active session with Id={active_session.Id}");
-            }
-            catch {
-                lease.Dispose();
-                throw;
-            }
-            return SuccessLease;
-        }
-
-        protected override RateLimitLease? ExtractExistingLease(HttpContext context) {
-            if(!context.GetLocalSession().IsAvailable) return SuccessLease;
-            IActiveSession active_session = context.GetActiveSession();
-            return !active_session.IsAvailable || active_session.Properties.ContainsKey(ActiveSessionLeaseInfo.KEY) 
-                ? SuccessLease : null;
-        }
-
         class SessionGroupComparer : IEqualityComparer<ILocalSession>
         {
             public Boolean Equals(ILocalSession? x, ILocalSession? y)
@@ -92,20 +85,26 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
 
         static SessionGroupComparer Comparer = new SessionGroupComparer();
 
-        class SurrogateLease : RateLimitLease
+        static ILocalSession SessionGroupExtractor(HttpContext context) 
         {
-
-            public override Boolean IsAcquired => true;
-
-            public override IEnumerable<String> MetadataNames => Array.Empty<String>();
-
-            public override Boolean TryGetMetadata(String metadataName, out Object? metadata)
-            {
-                metadata = null;
-                return false;
-            }
+            ILocalSession group = context.GetActiveSessionGroup();
+            return group.IsAvailable ? group : NullGroup;
         }
 
-        static SurrogateLease SuccessLease = new SurrogateLease();
+        class DummmySessionGroup : ILocalSession
+        {
+            public String Id => "{416DFAB3-DF7A-4FB8-B294-73A9D813B869}";
+
+            public Boolean IsAvailable => false;
+
+            public IServiceProvider SessionServices => throw new NotImplementedException();
+
+            public CancellationToken CompletionToken => throw new NotImplementedException();
+
+            public IDictionary<String, Object> Properties => throw new NotImplementedException();
+        }
+
+        static DummmySessionGroup NullGroup = new DummmySessionGroup();
+
     }
 }
