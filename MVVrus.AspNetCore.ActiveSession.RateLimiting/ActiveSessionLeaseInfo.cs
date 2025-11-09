@@ -9,6 +9,7 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
 
         RateLimitLease? _lease;
         public IShareableLeaseOwner<HttpContext>? LeaseOwner { get; }
+        public Boolean WasLeaseRejected { get; private set; } = false;
 
         public RateLimitLease Lease => _lease?? throw new ObjectDisposedException(nameof(ActiveSessionLeaseInfo));
 
@@ -37,7 +38,10 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
 
         public Boolean TrySetLease(ref RateLimitLease lease)
         {
-            if(!lease.IsAcquired) return false;
+            if(!lease.IsAcquired) {
+                WasLeaseRejected = true;
+                return false;
+            }
             return Interlocked.CompareExchange(ref _lease, lease, null)!=null;
         }
     }
