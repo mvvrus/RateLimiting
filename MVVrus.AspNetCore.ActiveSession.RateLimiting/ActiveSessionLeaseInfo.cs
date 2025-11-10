@@ -3,40 +3,35 @@ using System.Threading.RateLimiting;
 
 namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
 {
-    internal class ActiveSessionLeaseInfo : IDisposable, ILeaseContainer
+    internal class ActiveSessionLeaseInfo : SingleShareableLeaseOwner<HttpContext>
     {
         public const String KEY = "{9A54776E-156B-470D-9431-C293E179B9EB}";
 
         RateLimitLease? _lease;
-        public IShareableLeaseOwner<HttpContext>? LeaseOwner { get; }
         public Boolean WasLeaseRejected { get; private set; } = false;
 
         public RateLimitLease Lease => _lease?? throw new ObjectDisposedException(nameof(ActiveSessionLeaseInfo));
 
-        public ActiveSessionLeaseInfo(RateLimitLease lease)
+        public ActiveSessionLeaseInfo(PartitionedRateLimiter<HttpContext> baseLimiter): base(baseLimiter)
         {
-            _lease = lease;
         }
 
-        public ActiveSessionLeaseInfo(IRawRateLimiter<HttpContext> baseLimiter)
+        protected override void Dispose(Boolean disposing)
         {
-            LeaseOwner = new SingleShareableLeaseOwner<HttpContext>(baseLimiter, this);
+            if(disposing) {
+                RateLimitLease? lease = Interlocked.Exchange(ref _lease, null);
+                lease?.Dispose();
+            }
+            base.Dispose(disposing);
         }
 
-        public void Dispose()
-        {
-            LeaseOwner?.Dispose();
-            RateLimitLease? lease = Interlocked.Exchange(ref _lease, null);
-            lease?.Dispose();
-        }
-
-        public Boolean TryGetLease(out RateLimitLease? lease)
+        protected override Boolean TryGetLease(out RateLimitLease? lease)
         {
             lease = Volatile.Read(ref _lease);
             return lease != null;
         }
 
-        public Boolean TrySetLease(ref RateLimitLease lease)
+        protected override Boolean TrySetLease(ref RateLimitLease lease)
         {
             if(!lease.IsAcquired) {
                 WasLeaseRejected = true;

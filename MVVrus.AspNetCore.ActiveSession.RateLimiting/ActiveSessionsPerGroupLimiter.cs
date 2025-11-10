@@ -26,7 +26,7 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
             if(active_session == null || !active_session.IsAvailable) return null;
 
             try {
-                active_session.Properties.Add(ActiveSessionLeaseInfo.KEY, lease_info=new ActiveSessionLeaseInfo(this));
+                active_session.Properties.Add(ActiveSessionLeaseInfo.KEY, lease_info=new ActiveSessionLeaseInfo(this.BaseLimiter));
                 active_session.TakeOwnership(lease_info);
             }
             catch(ArgumentException) {
@@ -37,7 +37,7 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
                 lease_info?.Dispose();
                 throw;
             }
-            return lease_info.LeaseOwner;
+            return lease_info;
         }
 
         static Func<ILocalSession, RateLimitPartition<ILocalSession>> PartitionerMaker(ConcurrencyLimiterOptions options)

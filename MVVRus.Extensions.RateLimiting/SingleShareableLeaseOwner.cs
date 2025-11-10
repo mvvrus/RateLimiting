@@ -6,19 +6,19 @@ using System.Threading.RateLimiting;
 
 namespace MVVRus.Extensions.RateLimiting
 {
-    public class SingleShareableLeaseOwner<TResource> : IShareableLeaseOwner<TResource>
+    public abstract class SingleShareableLeaseOwner<TResource> : IShareableLeaseOwner<TResource>
     {
-        IRawRateLimiter<TResource> _rawLimiter;
-        ILeaseContainer _container;
+        PartitionedRateLimiter<TResource> _baseLimiter;
         Int32 _disposedValue=0;
         Task<RateLimitLease>? _rawLeaseTask=null;
+        protected abstract Boolean TryGetLease(out RateLimitLease? lease);
+        protected abstract Boolean TrySetLease(ref RateLimitLease lease);
 
         public event EventHandler? DisposedEvent;
 
-        public SingleShareableLeaseOwner(IRawRateLimiter<TResource> rawLimiter, ILeaseContainer container)
+        public SingleShareableLeaseOwner(PartitionedRateLimiter<TResource> baseLimiter)
         {
-            _rawLimiter = rawLimiter;
-            _container = container;
+            _baseLimiter = baseLimiter;
         }
 
         public DerivedLease AcquireLease(TResource resource, Int32 permitCount)
@@ -26,8 +26,8 @@ namespace MVVRus.Extensions.RateLimiting
             RateLimitLease? lease;
             Boolean must_dispose = false;
             if(permitCount>1) throw new NotImplementedException("Only 1-permit lease acquisition is supported.");
-            if(!_container.TryGetLease(out lease)) {
-                lease = _rawLimiter.AttemptAcquire(resource, permitCount);
+            if(!TryGetLease(out lease)) {
+                lease = _baseLimiter.AttemptAcquire(resource, permitCount);
                 must_dispose = !TryStoreLease(ref lease);
             }
             DerivedLease result = MakeDerived(lease!, permitCount);
@@ -40,13 +40,13 @@ namespace MVVRus.Extensions.RateLimiting
             RateLimitLease? lease;
             Boolean must_dispose_lease = false;
             if(permitCount>1) throw new NotImplementedException("Only 1-permit lease acquisition is supported.");
-            if(!_container.TryGetLease(out lease)) {
+            if(!TryGetLease(out lease)) {
                 Task<RateLimitLease>? current_lease_task;
                 //No raw (i.e. base) lease yet. Try to acquire it async
                 while((current_lease_task=Volatile.Read(ref _rawLeaseTask)) == null) {
                     TaskCompletionSource start_tcs = new TaskCompletionSource(); //Used to delay the raw lease acquisition task
                     Task<RateLimitLease> new_raw_lease_task = start_tcs.Task.ContinueWith(
-                            task => _rawLimiter.AcquireAsync(resource, permitCount, cancellationToken).AsTask(),
+                            task => _baseLimiter.AcquireAsync(resource, permitCount, cancellationToken).AsTask(),
                             cancellationToken,
                             TaskContinuationOptions.OnlyOnRanToCompletion,
                             TaskScheduler.Default
@@ -63,7 +63,7 @@ namespace MVVRus.Extensions.RateLimiting
                 must_dispose_lease = !TryStoreLease(ref lease);
                 RateLimitLease? placeholder;
                 Task? abandoned;
-                if(!lease.IsAcquired && !_container.TryGetLease(out placeholder)) 
+                if(!lease.IsAcquired && !TryGetLease(out placeholder)) 
                     abandoned = Interlocked.CompareExchange(ref _rawLeaseTask, null, current_lease_task); //Plan to acquire a permissive lease ones more
             }
             DerivedLease result = MakeDerived(lease!, permitCount);
@@ -79,7 +79,7 @@ namespace MVVRus.Extensions.RateLimiting
         Boolean TryStoreLease(ref RateLimitLease lease)
         //Return true only if the lease has been just stored successfully in the container so we are no more responsible for its cleanup
         {
-            return (lease.IsAcquired) ? _container.TrySetLease(ref lease) : false;
+            return (lease.IsAcquired) ? TrySetLease(ref lease) : false;
         }
 
         protected virtual DerivedLease MakeDerived(RateLimitLease lease, Int32 permitCount)
