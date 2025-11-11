@@ -10,12 +10,7 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
         static Action<ManagedLifetimeLimiter, ILocalSession> RegistrarDelegate = Registrar;
 
         public ActiveSessionsPerGroupLimiter(ConcurrencyLimiterOptions options) 
-            : base(SessionGroupExtractor,
-                  PartitionerMaker(options),
-                  Comparer)
-        {
-
-        }
+            : base(PartitionedRateLimiter.Create(PartitionerMaker(options), Comparer)) { }
 
         protected override IShareableLeaseOwner<HttpContext>? GetLeaseStore(HttpContext context)
         {
@@ -26,7 +21,7 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
             if(active_session == null || !active_session.IsAvailable) return null;
 
             try {
-                active_session.Properties.Add(ActiveSessionLeaseInfo.KEY, lease_info=new ActiveSessionLeaseInfo(this.BaseLimiter));
+                active_session.Properties.Add(ActiveSessionLeaseInfo.KEY, lease_info=new ActiveSessionLeaseInfo());
                 active_session.TakeOwnership(lease_info);
             }
             catch(ArgumentException) {
@@ -40,17 +35,29 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
             return lease_info;
         }
 
-        static Func<ILocalSession, RateLimitPartition<ILocalSession>> PartitionerMaker(ConcurrencyLimiterOptions options)
+        static Func<HttpContext, RateLimitPartition<ILocalSession>> PartitionerMaker(ConcurrencyLimiterOptions options)
         {
             // The section limiter must not become expired until the session group object is not disposed.
             // The session group of the context is always available due to HasAssociatedLease call in both lease acquisition methods,
             // so use ManagedLifetimeLimiter associated with the actual session group.
-            return (ILocalSession local_session) => local_session.IsAvailable? 
-                    ManagedLifetimePartition.GetManagedLifetimeLimiter(
-                        local_session,
-                        key => RateLimitPartition.GetConcurrencyLimiter(key, key => options),
-                        RegistrarDelegate) 
-                : RateLimitPartition.GetNoLimiter(local_session);
+
+            return Partitioner;
+
+            RateLimitPartition<ILocalSession> Partitioner(HttpContext context)
+            {
+                ILocalSession group = context.GetActiveSessionGroup();
+                Func<ILocalSession, RateLimiter> factory =
+                    key => (key.IsAvailable ?
+                            ManagedLifetimePartition.GetManagedLifetimeLimiter(
+                                key,
+                                gclKey => RateLimitPartition.GetConcurrencyLimiter(gclKey, gclKey => options),
+                                RegistrarDelegate
+                            )
+                        : RateLimitPartition.GetNoLimiter(key)
+                    ).Factory(key);
+                return new RateLimitPartition<ILocalSession>(group.IsAvailable ? group : NullGroup, factory);                    
+            }
+
         }
 
         static void Registrar(ManagedLifetimeLimiter limiter, ILocalSession sessionGroup)
@@ -84,12 +91,6 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
         }
 
         static SessionGroupComparer Comparer = new SessionGroupComparer();
-
-        static ILocalSession SessionGroupExtractor(HttpContext context) 
-        {
-            ILocalSession group = context.GetActiveSessionGroup();
-            return group.IsAvailable ? group : NullGroup;
-        }
 
         class DummmySessionGroup : ILocalSession
         {

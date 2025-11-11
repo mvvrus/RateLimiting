@@ -9,76 +9,35 @@ namespace MVVRus.Extensions.RateLimiting
 {
     public abstract class LinkedLeaseRateLimiter<TResource, TPartitionKey> : PartitionedRateLimiter<TResource> where TPartitionKey:notnull
     {
-        protected PartitionedRateLimiter<TResource> BaseLimiter { get; private set; }
+        PartitionedRateLimiter<TResource> _baseLimiter;
 
-        protected readonly Func<TResource, TPartitionKey> _keyExtractor;
         protected abstract IShareableLeaseOwner<TResource>? GetLeaseStore(TResource resource);
 
-        public LinkedLeaseRateLimiter(Func<TResource, TPartitionKey> keyExtractor,
-            Func<TPartitionKey, RateLimitPartition<TPartitionKey>> partitionMaker, 
-            IEqualityComparer<TPartitionKey>? equalityComparer = null)
-
+        public LinkedLeaseRateLimiter(PartitionedRateLimiter<TResource> baseLimiter)
         {
-            _keyExtractor = keyExtractor;
-            BaseLimiter = PartitionedRateLimiter.Create(MakePartitioner(keyExtractor,partitionMaker),equalityComparer);
-        }
-
-        public LinkedLeaseRateLimiter(Func<TResource, TPartitionKey> keyExtractor,
-            Func<TPartitionKey, Func<TPartitionKey, RateLimiter>> limiterMaker, 
-            IEqualityComparer<TPartitionKey>? equalityComparer = null)
-
-        {
-            _keyExtractor = keyExtractor;
-            BaseLimiter = PartitionedRateLimiter.Create(MakePartitioner(keyExtractor, limiterMaker), equalityComparer);
+            _baseLimiter = baseLimiter;
         }
 
         public override RateLimiterStatistics? GetStatistics(TResource resource)
         {
-            return BaseLimiter.GetStatistics(resource);
+            return _baseLimiter.GetStatistics(resource);
         }
 
         protected override async ValueTask<RateLimitLease> AcquireAsyncCore(TResource resource, Int32 permitCount, CancellationToken cancellationToken)
         {
             IShareableLeaseOwner<TResource>? leaseStore = GetLeaseStore(resource);
             if(leaseStore!=null)
-                return await leaseStore.AcquireLeaseAsync(resource, permitCount, cancellationToken);
-            else return await BaseLimiter.AcquireAsync(resource,permitCount, cancellationToken);
+                return await leaseStore.AcquireLeaseAsync(_baseLimiter, resource, permitCount, cancellationToken);
+            else return await _baseLimiter.AcquireAsync(resource,permitCount, cancellationToken);
         }
 
         protected override RateLimitLease AttemptAcquireCore(TResource resource, Int32 permitCount)
         {
             IShareableLeaseOwner<TResource>? leaseStore = GetLeaseStore(resource);
             if(leaseStore!=null)
-                return leaseStore.AcquireLease(resource, permitCount);
-            else return BaseLimiter.AttemptAcquire(resource, permitCount);
+                return leaseStore.AcquireLease(_baseLimiter, resource, permitCount);
+            else return _baseLimiter.AttemptAcquire(resource, permitCount);
         }
 
-        static Func<TResource, RateLimitPartition<TPartitionKey>> MakePartitioner(
-            Func<TResource,TPartitionKey> keyExtractor, 
-            Func<TPartitionKey, RateLimitPartition<TPartitionKey>> partitionMaker)
-        {
-            return Partitioner;
-
-            RateLimitPartition<TPartitionKey> Partitioner(TResource resource)
-            {
-                TPartitionKey key = keyExtractor(resource);
-                return new RateLimitPartition<TPartitionKey>(key,
-                    partKey => partitionMaker(partKey).Factory(partKey));
-            }
-        }
-
-        static Func<TResource, RateLimitPartition<TPartitionKey>> MakePartitioner(
-            Func<TResource, TPartitionKey> keyExtractor,
-            Func<TPartitionKey, Func<TPartitionKey,RateLimiter>> limiterMaker)
-        {
-            return Partitioner;
-
-            RateLimitPartition<TPartitionKey> Partitioner(TResource resource)
-            {
-                TPartitionKey key = keyExtractor(resource);
-                return new RateLimitPartition<TPartitionKey>(key,
-                    partKey => limiterMaker(partKey)(partKey));
-            }
-        }
     }
 }

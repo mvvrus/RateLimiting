@@ -8,7 +8,6 @@ namespace MVVRus.Extensions.RateLimiting
 {
     public abstract class SingleShareableLeaseOwner<TResource> : IShareableLeaseOwner<TResource>
     {
-        PartitionedRateLimiter<TResource> _baseLimiter;
         Int32 _disposedValue=0;
         Task<RateLimitLease>? _rawLeaseTask=null;
         protected abstract Boolean TryGetLease(out RateLimitLease? lease);
@@ -16,18 +15,13 @@ namespace MVVRus.Extensions.RateLimiting
 
         public event EventHandler? DisposedEvent;
 
-        public SingleShareableLeaseOwner(PartitionedRateLimiter<TResource> baseLimiter)
-        {
-            _baseLimiter = baseLimiter;
-        }
-
-        public DerivedLease AcquireLease(TResource resource, Int32 permitCount)
+        public DerivedLease AcquireLease(PartitionedRateLimiter<TResource> baseLimiter, TResource resource, Int32 permitCount)
         {
             RateLimitLease? lease;
             Boolean must_dispose = false;
             if(permitCount>1) throw new NotImplementedException("Only 1-permit lease acquisition is supported.");
             if(!TryGetLease(out lease)) {
-                lease = _baseLimiter.AttemptAcquire(resource, permitCount);
+                lease = baseLimiter.AttemptAcquire(resource, permitCount);
                 must_dispose = !TryStoreLease(ref lease);
             }
             DerivedLease result = MakeDerived(lease!, permitCount);
@@ -35,7 +29,7 @@ namespace MVVRus.Extensions.RateLimiting
             return result;
         }
 
-        public async ValueTask<DerivedLease> AcquireLeaseAsync(TResource resource, Int32 permitCount, CancellationToken cancellationToken)
+        public async ValueTask<DerivedLease> AcquireLeaseAsync(PartitionedRateLimiter<TResource> baseLimiter, TResource resource, Int32 permitCount, CancellationToken cancellationToken)
         {
             RateLimitLease? lease;
             Boolean must_dispose_lease = false;
@@ -46,7 +40,7 @@ namespace MVVRus.Extensions.RateLimiting
                 while((current_lease_task=Volatile.Read(ref _rawLeaseTask)) == null) {
                     TaskCompletionSource start_tcs = new TaskCompletionSource(); //Used to delay the raw lease acquisition task
                     Task<RateLimitLease> new_raw_lease_task = start_tcs.Task.ContinueWith(
-                            task => _baseLimiter.AcquireAsync(resource, permitCount, cancellationToken).AsTask(),
+                            task => baseLimiter.AcquireAsync(resource, permitCount, cancellationToken).AsTask(),
                             cancellationToken,
                             TaskContinuationOptions.OnlyOnRanToCompletion,
                             TaskScheduler.Default

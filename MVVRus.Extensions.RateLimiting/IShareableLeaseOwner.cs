@@ -10,7 +10,7 @@ namespace MVVRus.Extensions.RateLimiting
 
     public interface IShareableLeaseOwner<TResource>: IShareableLeaseOwner
     {
-        DerivedLease AcquireLease(TResource resource, Int32 permitCount);
-        ValueTask<DerivedLease> AcquireLeaseAsync(TResource resource, Int32 permitCount, CancellationToken cancellationToken);
+        DerivedLease AcquireLease(PartitionedRateLimiter<TResource> baseLimiter, TResource resource, Int32 permitCount);
+        ValueTask<DerivedLease> AcquireLeaseAsync(PartitionedRateLimiter<TResource> baseLimiter, TResource resource, Int32 permitCount, CancellationToken cancellationToken);
     }
 }

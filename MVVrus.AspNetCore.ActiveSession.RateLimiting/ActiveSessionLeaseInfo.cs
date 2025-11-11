@@ -12,10 +12,6 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
 
         public RateLimitLease Lease => _lease?? throw new ObjectDisposedException(nameof(ActiveSessionLeaseInfo));
 
-        public ActiveSessionLeaseInfo(PartitionedRateLimiter<HttpContext> baseLimiter): base(baseLimiter)
-        {
-        }
-
         protected override void Dispose(Boolean disposing)
         {
             if(disposing) {
