@@ -10,7 +10,7 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
         static Action<ManagedLifetimeLimiter, ILocalSession> RegistrarDelegate = Registrar;
 
         public ActiveSessionsPerGroupLimiter(ConcurrencyLimiterOptions options) 
-            : base(PartitionedRateLimiter.Create(PartitionerMaker(options), Comparer)) { }
+            : base(PartitionedRateLimiter.Create(PartitionerMaker(options), Comparer), true) { }
 
         protected override IShareableLeaseOwner<HttpContext>? GetLeaseStore(HttpContext context)
         {
