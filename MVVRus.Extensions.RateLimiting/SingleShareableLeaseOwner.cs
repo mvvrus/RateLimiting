@@ -17,23 +17,21 @@ namespace MVVRus.Extensions.RateLimiting
 
         public DerivedLease AcquireLease(PartitionedRateLimiter<TResource> baseLimiter, TResource resource, Int32 permitCount)
         {
-            RateLimitLease? lease;
-            Boolean must_dispose = false;
-            if(permitCount>1) throw new NotImplementedException("Only 1-permit lease acquisition is supported.");
+            RateLimitLease? lease, acquired_lease=null;
+            Boolean must_dispose_lease = false;
             if(!TryGetLease(out lease)) {
-                lease = baseLimiter.AttemptAcquire(resource, permitCount);
-                must_dispose = !TryStoreLease(ref lease);
+                lease = acquired_lease = baseLimiter.AttemptAcquire(resource, permitCount);
+                must_dispose_lease = !TryStoreLease(ref lease);
             }
             DerivedLease result = MakeDerived(lease!, permitCount);
-            if(must_dispose) lease?.Dispose();
+            if(must_dispose_lease) acquired_lease?.Dispose();
             return result;
         }
 
         public async ValueTask<DerivedLease> AcquireLeaseAsync(PartitionedRateLimiter<TResource> baseLimiter, TResource resource, Int32 permitCount, CancellationToken cancellationToken)
         {
-            RateLimitLease? lease;
+            RateLimitLease? lease, acquired_lease = null;
             Boolean must_dispose_lease = false;
-            if(permitCount>1) throw new NotImplementedException("Only 1-permit lease acquisition is supported.");
             if(!TryGetLease(out lease)) {
                 Task<RateLimitLease>? current_lease_task;
                 //No raw (i.e. base) lease yet. Try to acquire it async
@@ -53,7 +51,7 @@ namespace MVVRus.Extensions.RateLimiting
                         // Now we can allow raw lease acquisition task to be performed
                         start_tcs.TrySetResult();          
                 }
-                lease = await current_lease_task;
+                lease = acquired_lease = await current_lease_task;
                 must_dispose_lease = !TryStoreLease(ref lease);
                 RateLimitLease? placeholder;
                 Task? abandoned;
@@ -61,7 +59,7 @@ namespace MVVRus.Extensions.RateLimiting
                     abandoned = Interlocked.CompareExchange(ref _rawLeaseTask, null, current_lease_task); //Plan to acquire a permissive lease ones more
             }
             DerivedLease result = MakeDerived(lease!, permitCount);
-            if(must_dispose_lease) lease?.Dispose();
+            if(must_dispose_lease) acquired_lease?.Dispose();
             return result;
         }
 
