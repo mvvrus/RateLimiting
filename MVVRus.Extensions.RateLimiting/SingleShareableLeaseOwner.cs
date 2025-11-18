@@ -21,7 +21,7 @@ namespace MVVRus.Extensions.RateLimiting
             Boolean must_dispose_lease = false;
             if(!TryGetLease(out lease)) {
                 lease = acquired_lease = baseLimiter.AttemptAcquire(resource, permitCount);
-                must_dispose_lease = !TryStoreLease(ref lease);
+                must_dispose_lease = !TrySetLease(ref lease);
             }
             DerivedLease result = MakeDerived(lease!, permitCount);
             if(must_dispose_lease) acquired_lease?.Dispose();
@@ -52,7 +52,7 @@ namespace MVVRus.Extensions.RateLimiting
                         start_tcs.TrySetResult();          
                 }
                 lease = acquired_lease = await current_lease_task;
-                must_dispose_lease = !TryStoreLease(ref lease);
+                must_dispose_lease = !TrySetLease(ref lease);
                 RateLimitLease? placeholder;
                 Task? abandoned;
                 if(!lease.IsAcquired && !TryGetLease(out placeholder)) 
@@ -66,12 +66,6 @@ namespace MVVRus.Extensions.RateLimiting
         public void Release(DerivedLease derivedLease)
         {
             //Nothing to do in this class
-        }
-
-        Boolean TryStoreLease(ref RateLimitLease lease)
-        //Return true only if the lease has been just stored successfully in the container so we are no more responsible for its cleanup
-        {
-            return (lease.IsAcquired) ? TrySetLease(ref lease) : false;
         }
 
         protected virtual DerivedLease MakeDerived(RateLimitLease lease, Int32 permitCount)
