@@ -20,7 +20,7 @@ namespace MVVRus.Extensions.RateLimiting
             RateLimitLease? lease, acquired_lease=null;
             Boolean must_dispose_lease = false;
             if(!TryGetLease(out lease)) {
-                lease = acquired_lease = baseLimiter.AttemptAcquire(resource, permitCount);
+                lease = acquired_lease = baseLimiter.AttemptAcquire(resource, 1);
                 must_dispose_lease = !TrySetLease(ref lease);
             }
             DerivedLease result = MakeDerived(lease!, permitCount);
@@ -38,7 +38,7 @@ namespace MVVRus.Extensions.RateLimiting
                 while((current_lease_task=Volatile.Read(ref _rawLeaseTask)) == null) {
                     TaskCompletionSource start_tcs = new TaskCompletionSource(); //Used to delay the raw lease acquisition task
                     Task<RateLimitLease> new_raw_lease_task = start_tcs.Task.ContinueWith(
-                            task => baseLimiter.AcquireAsync(resource, permitCount, cancellationToken).AsTask(),
+                            task => baseLimiter.AcquireAsync(resource, 1, cancellationToken).AsTask(),
                             cancellationToken,
                             TaskContinuationOptions.OnlyOnRanToCompletion,
                             TaskScheduler.Default
