@@ -45,17 +45,16 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
 
             RateLimitPartition<ILocalSession> Partitioner(HttpContext context)
             {
-                ILocalSession group = context.GetActiveSessionGroup();
-                Func<ILocalSession, RateLimiter> factory =
-                    key => (key.IsAvailable ?
+                ILocalSession? group = context.GetActiveSessionGroup();
+                group = group!=null && group.IsAvailable ? group : NullGroup;
+                return
+                    group.IsAvailable ?
                             ManagedLifetimePartition.GetManagedLifetimeLimiter(
-                                key,
+                                group,
                                 gclKey => RateLimitPartition.GetConcurrencyLimiter(gclKey, gclKey => options),
                                 RegistrarDelegate
                             )
-                        : RateLimitPartition.GetNoLimiter(key)
-                    ).Factory(key);
-                return new RateLimitPartition<ILocalSession>(group.IsAvailable ? group : NullGroup, factory);                    
+                    : RateLimitPartition.GetNoLimiter(group);
             }
 
         }
