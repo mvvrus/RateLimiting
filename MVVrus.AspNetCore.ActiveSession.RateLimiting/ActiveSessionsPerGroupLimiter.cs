@@ -20,19 +20,30 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
 
             if(active_session == null || !active_session.IsAvailable) return null;
 
-            try {
+            if(!TryGetValue(out lease_info)) try {
                 active_session.Properties.Add(ActiveSessionLeaseInfo.KEY, lease_info=new ActiveSessionLeaseInfo());
                 active_session.TakeOwnership(lease_info);
             }
             catch(ArgumentException) {
                 lease_info?.Dispose();
-                throw new InvalidOperationException($"An active session lease is already associated with the active session with Id={active_session.Id}");
+                if(!TryGetValue(out lease_info)) 
+                    throw new InvalidOperationException($"{nameof(ActiveSessionsPerGroupLimiter)}: Unexpected error while processing the active session with Id={active_session.Id}");
             }
             catch {
                 lease_info?.Dispose();
                 throw;
             }
             return lease_info;
+
+            Boolean TryGetValue(out ActiveSessionLeaseInfo? value)
+            {
+                Object? value_object;
+                Boolean result = active_session.Properties.TryGetValue(ActiveSessionLeaseInfo.KEY, out value_object);
+                value = value_object as ActiveSessionLeaseInfo;
+                if(result && value==null)
+                    throw new InvalidOperationException($"{nameof(ActiveSessionsPerGroupLimiter)}: Null reference or non-{nameof(ActiveSessionLeaseInfo)} object found at the predefined lease info key {ActiveSessionLeaseInfo.KEY} in the Properties of the active session with Id={active_session.Id}");
+                return result;
+            }
         }
 
         static Func<HttpContext, RateLimitPartition<ILocalSession>> PartitionerMaker(ConcurrencyLimiterOptions options)
