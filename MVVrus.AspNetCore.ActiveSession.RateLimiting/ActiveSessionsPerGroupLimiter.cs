@@ -72,8 +72,9 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
 
         static void Registrar(ManagedLifetimeLimiter limiter, ILocalSession sessionGroup)
         {
+            Monitor.Enter(sessionGroup);
             try {
-                sessionGroup.Properties.Add(SessionGroupASLimiterInfo.KEY, new SessionGroupASLimiterInfo(limiter));
+                sessionGroup.Properties.Add(SessionGroupASLimiterInfo.KEY, limiter);
                 sessionGroup.TakeOwnership(limiter);
             }
             catch(ArgumentException) {
@@ -83,6 +84,9 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
             catch {
                 limiter.Dispose();
                 throw;
+            }
+            finally { 
+                Monitor.Exit(sessionGroup);
             }
         }
 
@@ -116,6 +120,12 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
         }
 
         static DummmySessionGroup NullGroup = new DummmySessionGroup();
+
+        static class SessionGroupASLimiterInfo 
+        {
+            public const String KEY = "{E7A63EB5-7CF1-433A-AA2B-9483FF3D34BE}";
+        }
+
 
     }
 }
