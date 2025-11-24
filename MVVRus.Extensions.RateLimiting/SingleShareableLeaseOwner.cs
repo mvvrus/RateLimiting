@@ -17,6 +17,7 @@ namespace MVVRus.Extensions.RateLimiting
 
         public DerivedLease AcquireLease(PartitionedRateLimiter<TResource> baseLimiter, TResource resource, Int32 permitCount)
         {
+            if(IsDisposed) throw new ObjectDisposedException(nameof(SingleShareableLeaseOwner<TResource>));
             RateLimitLease? lease, acquired_lease=null;
             Boolean must_dispose_lease = false;
             if(!TryGetLease(out lease)) {
@@ -30,6 +31,7 @@ namespace MVVRus.Extensions.RateLimiting
 
         public async ValueTask<DerivedLease> AcquireLeaseAsync(PartitionedRateLimiter<TResource> baseLimiter, TResource resource, Int32 permitCount, CancellationToken cancellationToken)
         {
+            if(IsDisposed) throw new ObjectDisposedException(nameof(SingleShareableLeaseOwner<TResource>));
             RateLimitLease? lease, acquired_lease = null;
             Boolean must_dispose_lease = false;
             if(!TryGetLease(out lease)) {
@@ -85,7 +87,7 @@ namespace MVVRus.Extensions.RateLimiting
         {
             // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
             Int32 disposedValue = Interlocked.Exchange(ref _disposedValue, 1);
-            if(disposedValue>0) {
+            if(disposedValue==0) {
                 Dispose(disposing: true);
                 GC.SuppressFinalize(this);
             }
@@ -96,5 +98,7 @@ namespace MVVRus.Extensions.RateLimiting
         {
             handler?.Invoke(this, EventArgs.Empty);
         }
+
+        protected Boolean IsDisposed { get => Volatile.Read(ref _disposedValue)>0; }
     }
 }
