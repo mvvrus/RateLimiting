@@ -10,8 +10,6 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
         RateLimitLease? _lease;
         public Boolean WasLeaseRejected { get; private set; } = false;
 
-        public RateLimitLease Lease => _lease?? throw new ObjectDisposedException(nameof(ActiveSessionLeaseInfo));
-
         protected override void Dispose(Boolean disposing)
         {
             if(disposing) {
