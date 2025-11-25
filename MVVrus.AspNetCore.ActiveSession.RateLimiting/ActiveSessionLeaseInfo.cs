@@ -7,8 +7,8 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
     {
         public const String KEY = "{9A54776E-156B-470D-9431-C293E179B9EB}";
 
-        RateLimitLease? _lease;
-        public Boolean WasLeaseRejected { get; private set; } = false;
+        internal RateLimitLease? _lease;
+        public Boolean WasLeaseEverRejected { get; private set; } = false;
 
         protected override void Dispose(Boolean disposing)
         {
@@ -28,7 +28,7 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
         protected override Boolean TrySetLease(ref RateLimitLease lease)
         {
             if(!lease.IsAcquired) {
-                WasLeaseRejected = true;
+                WasLeaseEverRejected = true;
                 return false;
             }
             return Interlocked.CompareExchange(ref _lease, lease, null)!=null;

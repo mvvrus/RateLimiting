@@ -15,7 +15,10 @@
             IActiveSession? active_session = context.GetActiveSession();
             if (active_session != null && active_session.IsAvailable) {
                 ActiveSessionLeaseInfo? lease_info = active_session.Properties[ActiveSessionLeaseInfo.KEY] as ActiveSessionLeaseInfo;
-                if(lease_info?.WasLeaseRejected??false) await active_session.Terminate(context);
+                if(lease_info!= null) {
+                    if(Volatile.Read(ref lease_info._lease)==null && lease_info.WasLeaseEverRejected) 
+                        await active_session.Terminate(context);
+                }
             }
         }
     }
