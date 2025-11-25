@@ -27,6 +27,7 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
 
         protected override Boolean TrySetLease(ref RateLimitLease lease)
         {
+            ArgumentNullException.ThrowIfNull(lease, nameof(lease));
             if(!lease.IsAcquired) {
                 WasLeaseEverRejected = true;
                 return false;
