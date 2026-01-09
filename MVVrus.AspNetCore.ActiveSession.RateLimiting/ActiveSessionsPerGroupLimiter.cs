@@ -7,7 +7,7 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
     public class ActiveSessionsPerGroupLimiter : LinkedLeaseRateLimiter<HttpContext, ILocalSession>
     {
 
-        static Action<ManagedLifetimeLimiter, ILocalSession> RegistrarDelegate = Registrar;
+        static Action<RateLimiter, ILocalSession> RegistrarDelegate = Registrar;
 
         public ActiveSessionsPerGroupLimiter(ConcurrencyLimiterOptions options) 
             : base(PartitionedRateLimiter.Create(PartitionerMaker(options), Comparer), true) { }
@@ -70,7 +70,7 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
 
         }
 
-        static void Registrar(ManagedLifetimeLimiter limiter, ILocalSession sessionGroup)
+        static void Registrar(RateLimiter limiter, ILocalSession sessionGroup)
         {
             Monitor.Enter(sessionGroup);
             try {

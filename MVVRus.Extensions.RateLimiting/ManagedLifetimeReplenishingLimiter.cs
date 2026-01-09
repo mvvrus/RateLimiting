@@ -2,21 +2,20 @@
 
 namespace MVVRus.Extensions.RateLimiting
 {
-    public class ManagedLifetimeLimiter : RateLimiter, IRateLimiterAggregator
+    internal class ManagedLifetimeReplenishingLimiter: ReplenishingRateLimiter, IRateLimiterAggregator
     {
-        //The code from this class is intentionally copypasted into the ManagedLifetimeReplenishingLimiter class
-        //It must be made so due to absence of multiple inheritance in the C# language
-        //After making corrections to the code don't forget to copy those corrections into ManagedLifetimeReplenishingLimiter.cs file
+        //Most of a code of this class is copypasted from ManagedLifetimeLimiter.class due to lack of multiple inheritance in C#.
+        //Don't forget to keep that code in sync.
 
-        RateLimiter? _inner;
+        ReplenishingRateLimiter? _inner;
 
-        protected internal ManagedLifetimeLimiter(RateLimiter Inner)
+        protected internal ManagedLifetimeReplenishingLimiter(ReplenishingRateLimiter Inner)
         {
             if(Inner is null) throw new ArgumentNullException(nameof(Inner));
             this._inner= Inner;
         }
 
-        public override TimeSpan? IdleDuration => Volatile.Read(ref _inner) is null?TimeSpan.MaxValue:null;
+        public override TimeSpan? IdleDuration => Volatile.Read(ref _inner) is null ? TimeSpan.MaxValue : null;
 
         public RateLimiter Inner => _inner??throw new ObjectDisposedException(nameof(Inner));
 
@@ -40,7 +39,7 @@ namespace MVVRus.Extensions.RateLimiting
             if(disposing) {
                 RateLimiter? inner = Interlocked.Exchange(ref _inner, null);
                 if(inner!=null) inner.Dispose();
-            }       
+            }
         }
 
         protected override async ValueTask DisposeAsyncCore()
@@ -49,6 +48,15 @@ namespace MVVRus.Extensions.RateLimiting
             if(inner!=null) await inner.DisposeAsync();
             await base.DisposeAsyncCore();
         }
+
+        public override Boolean IsAutoReplenishing => _inner?.IsAutoReplenishing??throw new ObjectDisposedException(nameof(Inner));
+
+        public override Boolean TryReplenish()
+        {
+            return _inner?.TryReplenish()??throw new ObjectDisposedException(nameof(Inner));
+        }
+
+        public override TimeSpan ReplenishmentPeriod => _inner?.ReplenishmentPeriod??throw new ObjectDisposedException(nameof(Inner));
 
     }
 }
