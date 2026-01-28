@@ -13,7 +13,7 @@ namespace MVVrus.AspNetCore.ActiveSession.RateLimiting
 
         public static IServiceCollection AddActiveSessionPerGroupLimiting(this IServiceCollection services, ConcurrencyLimiterOptions limiterOptions)
         {
-            services.Configure<RateLimiterOptions>(AddActiveSessionPerGroupLimiter);
+            services.PostConfigure<RateLimiterOptions>(AddActiveSessionPerGroupLimiter);
             return services;
 
             void AddActiveSessionPerGroupLimiter(RateLimiterOptions options)
