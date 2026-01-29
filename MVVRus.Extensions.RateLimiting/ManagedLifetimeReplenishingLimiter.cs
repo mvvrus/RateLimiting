@@ -9,7 +9,7 @@ namespace MVVRus.Extensions.RateLimiting
 
         ReplenishingRateLimiter? _inner;
 
-        protected internal ManagedLifetimeReplenishingLimiter(ReplenishingRateLimiter Inner)
+        public ManagedLifetimeReplenishingLimiter(ReplenishingRateLimiter Inner)
         {
             if(Inner is null) throw new ArgumentNullException(nameof(Inner));
             this._inner= Inner;

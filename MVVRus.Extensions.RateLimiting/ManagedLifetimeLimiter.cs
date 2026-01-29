@@ -10,10 +10,12 @@ namespace MVVRus.Extensions.RateLimiting
 
         RateLimiter? _inner;
 
-        protected internal ManagedLifetimeLimiter(RateLimiter Inner)
+        public ManagedLifetimeLimiter(RateLimiter Inner)
         {
             if(Inner is null) throw new ArgumentNullException(nameof(Inner));
-            this._inner= Inner;
+            if(Inner is ReplenishingRateLimiter)
+                throw new InvalidOperationException($"An instance of this class may not be based on the {Inner.GetType().Name} class because it is a descendant of a ReplenishingLimiter class. Use ManagedLifetimeReplenishingLimiter class instead.");
+            _inner= Inner;
         }
 
         public override TimeSpan? IdleDuration => Volatile.Read(ref _inner) is null?TimeSpan.MaxValue:null;
