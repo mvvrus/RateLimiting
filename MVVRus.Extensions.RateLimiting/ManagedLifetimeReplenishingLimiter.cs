@@ -2,7 +2,7 @@
 
 namespace MVVRus.Extensions.RateLimiting
 {
-    internal class ManagedLifetimeReplenishingLimiter: ReplenishingRateLimiter, IRateLimiterAggregator
+    public class ManagedLifetimeReplenishingLimiter: ReplenishingRateLimiter, IRateLimiterAggregator
     {
         //Most of a code of this class is copypasted from ManagedLifetimeLimiter.class due to lack of multiple inheritance in C#.
         //Don't forget to keep that code in sync.
