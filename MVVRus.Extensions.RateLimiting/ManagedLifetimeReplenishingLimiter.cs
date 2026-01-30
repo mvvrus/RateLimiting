@@ -17,7 +17,7 @@ namespace MVVRus.Extensions.RateLimiting
 
         public override TimeSpan? IdleDuration => Volatile.Read(ref _inner) is null ? TimeSpan.MaxValue : null;
 
-        public RateLimiter Inner => _inner??throw new ObjectDisposedException(nameof(Inner));
+        public RateLimiter Inner => Volatile.Read(ref _inner)??throw new ObjectDisposedException(nameof(Inner));
 
         public override RateLimiterStatistics? GetStatistics()
         {
